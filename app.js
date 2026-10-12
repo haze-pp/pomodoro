@@ -814,24 +814,59 @@ function renderThemeList() {
   }
 }
 
+// '#C8643B', 'c8643b', '#c63', 'rgb(200, 100, 59)', '200,100,59', '200 100 59' → '#c8643b'
+function parseColor(text) {
+  const s = text.trim().toLowerCase();
+  let m = s.match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/);
+  if (m) {
+    const h = m[1].length === 3 ? [...m[1]].map((ch) => ch + ch).join('') : m[1];
+    return `#${h}`;
+  }
+  m = s.match(/^(?:rgb\s*\()?\s*(\d{1,3})\s*[,\s]\s*(\d{1,3})\s*[,\s]\s*(\d{1,3})\s*\)?$/);
+  if (m) {
+    const v = m.slice(1).map(Number);
+    if (v.every((n) => n <= 255)) return `#${v.map((n) => n.toString(16).padStart(2, '0')).join('')}`;
+  }
+  return null;
+}
+
 function renderColorFields() {
   colorFields.textContent = '';
   const c = themeColors();
   for (const [key, label] of COLOR_FIELDS) {
     const wrap = document.createElement('label');
     wrap.className = 'color-field';
+    const swatch = document.createElement('span');
+    swatch.className = 'swatch-dot';
+    swatch.style.background = c[key];
+    const name = document.createElement('span');
+    name.className = 'color-name';
+    name.textContent = label;
     const input = document.createElement('input');
-    input.type = 'color';
-    input.value = c[key];
+    input.type = 'text';
+    input.value = c[key].toUpperCase();
+    input.placeholder = '#RRGGBB';
+    input.autocapitalize = 'off';
+    input.spellcheck = false;
+    input.maxLength = 20;
+    input.setAttribute('aria-label', `${label} 색 (HEX 또는 RGB)`);
+    // 입력하는 대로 바로 반영, 형식이 틀리면 빨간 테두리만 표시
     input.addEventListener('input', () => {
-      ensureCustom()[key] = input.value;
+      const hex = parseColor(input.value);
+      input.classList.toggle('invalid', !hex && input.value.trim() !== '');
+      if (!hex) return;
+      swatch.style.background = hex;
+      ensureCustom()[key] = hex;
       save();
       applyTheme();
       renderThemeList();
     });
-    const span = document.createElement('span');
-    span.textContent = label;
-    wrap.append(input, span);
+    // 입력을 마치면 HEX로 정리하고, 틀린 값이면 원래 색으로 되돌림
+    input.addEventListener('change', () => {
+      input.value = themeColors()[key].toUpperCase();
+      input.classList.remove('invalid');
+    });
+    wrap.append(swatch, name, input);
     colorFields.appendChild(wrap);
   }
 }

@@ -253,25 +253,36 @@ body.focus .hint.nudge { opacity: 1; }
 .custom-box { margin-top: 12px; }
 .custom-box summary { cursor: pointer; font-size: 14px; padding: 6px 0; }
 .color-fields {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin: 8px 0;
 }
 .color-field {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: 10px;
+  font-size: 14px;
 }
-.color-field input {
-  width: 36px;
+.swatch-dot {
+  flex: 0 0 auto;
+  width: 28px;
   height: 28px;
-  padding: 0;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  background: none;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, .15);
 }
+.color-name { flex: 1; }
+.color-field input {
+  width: 128px;
+  padding: 7px 10px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+}
+.color-field input.invalid { border-color: #d64545; outline-color: #d64545; }
+.color-hint { margin: 4px 0 0; }
 .phrase-input {
   display: block;
   width: 100%;
