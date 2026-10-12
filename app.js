@@ -167,25 +167,18 @@ const tickEls = [];
 const BODY_TOP = 40;               // 본체 윗면 y
 
 function buildClock() {
-  // 버튼 입체감: 위쪽은 밝게, 본체에 가까울수록 살짝 어둡게
-  const defs = el('defs', {}, svg);
-  const grad = el('linearGradient', { id: 'capShade', x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
-  for (const [offset, color, opacity] of [
-    [0, '#fff', 0.32], [0.18, '#fff', 0], [0.5, '#000', 0], [0.76, '#000', 0.18], [1, '#000', 0.18],
-  ]) el('stop', { offset, 'stop-color': color, 'stop-opacity': opacity }, grad);
-
   // 상단 버튼 (본체 뒤에 그려서 아랫부분이 가려지게)
   // RESET: 진행 중에만 본체 뒤에서 올라옴
   resetG = el('g', { class: 'top-btn reset-g', role: 'button', 'aria-label': '처음 시간으로 되돌리기' }, svg);
   resetCap = makeCap(resetG, {
     x: 246, width: 84, fill: 'var(--reset-bg)', ink: 'var(--reset-ink)',
-    label: 'RESET', fontSize: 12, spacing: 1.5,
+    label: 'RESET', fontSize: 13, spacing: 2,
   });
 
   startG = el('g', { class: 'top-btn start-g', role: 'button', 'aria-label': '시작 / 일시정지' }, svg);
   startCap = makeCap(startG, {
     x: 122, width: 156, fill: 'var(--pause)', ink: 'var(--pause-ink)',
-    label: 'START', fontSize: 15, spacing: 2.5,
+    label: 'START', fontSize: 13, spacing: 2,
   });
   startLabel = startCap.querySelector('text');
 
@@ -249,11 +242,12 @@ function buildClock() {
   // 터치 영역
   hitEl = el('circle', { cx: CX, cy: CY, r: R_FACE + 10, fill: 'transparent', class: 'dial-hit' }, svg);
 
-  // 버튼은 누르는 동안만 눌린 모양
+  // 누르는 동안 쑥 들어감 (PAUSE는 일시정지 동안 눌린 채로 유지)
   const pressable = (g, set, onClick) => {
     const press = (down) => () => { set(down); render(true); };
     g.addEventListener('pointerdown', () => {
-      if (settings.vibrate && navigator.vibrate) navigator.vibrate(8); // 딸깍 손맛
+      playClick(1500); // 다이얼보다 낮은 '딸깍'
+      if (settings.vibrate && navigator.vibrate) navigator.vibrate(8);
     });
     g.addEventListener('pointerdown', press(true));
     for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) g.addEventListener(ev, press(false));
@@ -263,15 +257,13 @@ function buildClock() {
   pressable(resetG, (v) => { resetPressed = v; }, resetTimer);
 }
 
-// 상단 실물 버튼: 버튼 면 + 입체 음영 + 윗면 하이라이트 + 글자를 한 묶음으로
+// 상단 실물 버튼: 버튼 면 + 글자를 한 묶음으로
 // 아랫부분은 본체 뒤에 가려지고, 누르면 묶음 전체가 아래로 들어감
 const CAP_TOP = 2;
 function makeCap(g, { x, width, fill, ink, label, fontSize, spacing }) {
   el('rect', { x: x - 10, y: 0, width: width + 20, height: BODY_TOP, fill: 'transparent' }, g);
   const cap = el('g', { class: 'cap' }, g);
   el('rect', { x, y: CAP_TOP, width, height: 70, rx: 10, style: `fill:${fill}` }, cap);
-  el('rect', { x, y: CAP_TOP, width, height: 50, rx: 10, fill: 'url(#capShade)' }, cap);
-  el('rect', { x: x + 6, y: CAP_TOP + 2, width: width - 12, height: 2, rx: 1, fill: 'rgba(255,255,255,.35)' }, cap);
   const t = el('text', {
     x: x + width / 2, y: (CAP_TOP + BODY_TOP) / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central',
     'font-size': fontSize, 'font-weight': 700, 'letter-spacing': spacing, class: 'cap-label', style: `fill:${ink}`,
@@ -340,12 +332,16 @@ function render(force) {
   }
 
   // 상단 버튼 눌림 상태
-  startCap.classList.toggle('pressed', startPressed);
+  startCap.classList.toggle('pressed', startPressed || (timer.started && !timer.running));
   resetCap.classList.toggle('pressed', resetPressed);
   // 진행 중엔 START/PAUSE가 왼쪽으로 비켜서고 RESET이 올라옴
   startG.classList.toggle('shifted', timer.started);
   resetG.classList.toggle('shown', timer.started);
-  startLabel.textContent = timer.running ? 'PAUSE' : timer.started ? 'RESUME' : 'START';
+  startLabel.textContent = timer.started ? 'PAUSE' : 'START';
+  // 일시정지 중엔 안내 문구를 계속 보여 줌 (잠깐 뜨는 안내가 있으면 그게 우선)
+  const paused = timer.started && !timer.running;
+  if (!hintEl.classList.contains('nudge')) hintEl.textContent = baseHint();
+  hintEl.classList.toggle('sticky', paused);
 
   // 숫자 표시
   // 다이얼을 돌리는 동안엔 손가락에 가려지지 않게 항상 크게 표시
@@ -381,7 +377,7 @@ function audio() {
   return actx;
 }
 
-function playClick() {
+function playClick(freq = 3200) {
   if (!settings.dialSound) return;
   const a = audio();
   if (!a) return;
@@ -395,7 +391,7 @@ function playClick() {
   src.buffer = clickBuf;
   const bp = a.createBiquadFilter();
   bp.type = 'bandpass';
-  bp.frequency.value = 3200;
+  bp.frequency.value = freq;
   bp.Q.value = 0.9;
   const g = a.createGain();
   g.gain.value = 0.9;
@@ -518,12 +514,13 @@ function togglePause() {
   if (timer.running) stopRun();
   else if (timer.remainingMs > 0) start();
   else showHint();
-  playClick();
   persistTimer();
   render(true);
 }
 
 const DEFAULT_HINT = hintEl.textContent;
+const PAUSED_HINT = '일시정지 중이에요. 이어서 하려면 버튼을 한 번 더 눌러 주세요';
+const baseHint = () => (timer.started && !timer.running ? PAUSED_HINT : DEFAULT_HINT);
 let hintTimer = null;
 
 // 안내 문구를 잠깐 바꿔 흔들어 보여 주기
@@ -535,7 +532,7 @@ function showHint(msg = DEFAULT_HINT) {
   hintEl.classList.add('nudge');
   hintTimer = setTimeout(() => {
     hintEl.classList.remove('nudge');
-    hintEl.textContent = DEFAULT_HINT;
+    hintEl.textContent = baseHint();
   }, 2600);
 }
 
@@ -545,7 +542,6 @@ function resetTimer() {
   stopRun();
   timer.started = false;
   timer.remainingMs = timer.sessionMinutes * 60000; // 처음 맞춘 시간으로
-  playClick();
   persistTimer();
   markActivePreset();
   render(true);

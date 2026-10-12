@@ -97,8 +97,8 @@ body {
 /* 상단 버튼: 진행 중엔 START/PAUSE가 왼쪽으로, RESET이 본체 뒤에서 올라옴 */
 #clock .top-btn { transition: transform .4s ease; }
 /* 누르면 쏙 들어갔다가 튀어나오는 버튼 */
-#clock .cap { transition: transform .16s cubic-bezier(.3, 1.6, .5, 1); }
-#clock .cap.pressed { transform: translateY(12px); transition: transform .06s ease-out; }
+#clock .cap { transition: transform .18s cubic-bezier(.3, 1.4, .5, 1); }
+#clock .cap.pressed { transform: translateY(32px); transition: transform .08s ease-in; }
 #clock .top-btn.shifted { transform: translateX(-50px); }
 #clock .reset-g { transform: translate(-50px, 48px); pointer-events: none; }
 #clock .reset-g.shown { transform: none; pointer-events: auto; }
@@ -169,7 +169,7 @@ body.focus .hint { opacity: 0; }
   opacity: .6;
   text-align: center;
 }
-body.focus .hint.nudge { opacity: 1; }
+body.focus .hint.nudge, body.focus .hint.sticky { opacity: 1; }
 
 /* 알람 깜빡임 */
 .flash {
