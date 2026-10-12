@@ -109,8 +109,21 @@
 
       <details id="customBox" class="custom-box">
         <summary>색상 직접 바꾸기</summary>
-        <p class="note color-hint">HEX(예: #C8643B)나 RGB(예: 200, 100, 59)로 입력하세요.</p>
-        <div id="colorFields" class="color-fields"></div>
+        <p class="note color-hint">바꿀 부분을 고르세요. 여러 개를 고르면 모두 같은 색이 돼요.</p>
+        <div id="partChips" class="part-chips"></div>
+        <div id="picker" class="picker">
+          <div id="svBox" class="sv-box"><div id="svThumb" class="sv-thumb"></div></div>
+          <div id="hueBar" class="hue-bar"><div id="hueThumb" class="hue-thumb"></div></div>
+          <div class="color-values">
+            <span id="pickPreview" class="pick-preview"></span>
+            <label class="hex-field">HEX <input id="hexInput" type="text" maxlength="20" autocapitalize="off" spellcheck="false"></label>
+          </div>
+          <div class="color-values rgb-fields">
+            <label>R <input id="rIn" type="number" min="0" max="255" inputmode="numeric"></label>
+            <label>G <input id="gIn" type="number" min="0" max="255" inputmode="numeric"></label>
+            <label>B <input id="bIn" type="number" min="0" max="255" inputmode="numeric"></label>
+          </div>
+        </div>
       </details>
 
       <h3>가운데 문구</h3>

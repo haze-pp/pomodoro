@@ -252,36 +252,92 @@ body.focus .hint.nudge { opacity: 1; }
 
 .custom-box { margin-top: 12px; }
 .custom-box summary { cursor: pointer; font-size: 14px; padding: 6px 0; }
-.color-fields {
+.part-chips {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 8px 0;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 12px;
 }
-.color-field {
+.sheet .part-chip {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 14px;
+  gap: 6px;
+  padding: 6px 10px 6px 6px;
+  border: 1.5px solid #ddd;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 13px;
 }
+.sheet .part-chip.selected { border-color: #222; background: #f2f2f2; font-weight: 600; }
 .swatch-dot {
   flex: 0 0 auto;
-  width: 28px;
-  height: 28px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   border: 1px solid rgba(0, 0, 0, .15);
 }
-.color-name { flex: 1; }
-.color-field input {
-  width: 128px;
+
+.picker { transition: opacity .2s; }
+.picker.inactive { opacity: .35; pointer-events: none; }
+.sv-box {
+  position: relative;
+  height: 180px;
+  border-radius: 12px;
+  background:
+    linear-gradient(to top, #000, transparent),
+    linear-gradient(to right, #fff, var(--hue, red));
+  touch-action: none;
+  cursor: crosshair;
+}
+.sv-thumb, .hue-thumb {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .3), 0 2px 6px rgba(0, 0, 0, .3);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.hue-bar {
+  position: relative;
+  height: 22px;
+  margin: 14px 0;
+  border-radius: 11px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  touch-action: none;
+  cursor: pointer;
+}
+.hue-thumb { top: 50%; background: transparent; }
+.color-values {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #666;
+}
+.rgb-fields { margin-top: 8px; }
+.color-values label { display: flex; align-items: center; gap: 6px; }
+.hex-field { flex: 1; }
+.pick-preview {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, .15);
+}
+.color-values input {
+  width: 100%;
+  min-width: 0;
   padding: 7px 10px;
   border: 1px solid #ccc;
   border-radius: 8px;
   font-size: 14px;
   font-variant-numeric: tabular-nums;
-  text-transform: uppercase;
 }
-.color-field input.invalid { border-color: #d64545; outline-color: #d64545; }
+.hex-field input { text-transform: uppercase; }
+.rgb-fields label { flex: 1; }
+.color-values input.invalid { border-color: #d64545; outline-color: #d64545; }
 .color-hint { margin: 4px 0 0; }
 .phrase-input {
   display: block;

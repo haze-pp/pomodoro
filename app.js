@@ -772,7 +772,6 @@ function applyTheme() {
 /* ───────── 설정 화면 ───────── */
 const settingsDialog = document.getElementById('settingsDialog');
 const themeList = document.getElementById('themeList');
-const colorFields = document.getElementById('colorFields');
 const phraseInput = document.getElementById('phraseInput');
 const phraseReset = document.getElementById('phraseReset');
 
@@ -814,6 +813,44 @@ function renderThemeList() {
   }
 }
 
+/* ───────── 색상 편집기: 큰 네모(채도·밝기) + 색상 막대 ───────── */
+const partChips = document.getElementById('partChips');
+const pickerEl = document.getElementById('picker');
+const svBox = document.getElementById('svBox');
+const svThumb = document.getElementById('svThumb');
+const hueBar = document.getElementById('hueBar');
+const hueThumb = document.getElementById('hueThumb');
+const pickPreview = document.getElementById('pickPreview');
+const hexInput = document.getElementById('hexInput');
+const rgbInputs = ['rIn', 'gIn', 'bIn'].map((id) => document.getElementById(id));
+
+const selectedParts = new Set(['sector']);
+const hsv = { h: 0, s: 0, v: 0 };
+
+const toHex = (rgb) => `#${rgb.map((n) => Math.round(n).toString(16).padStart(2, '0')).join('')}`;
+const fromHex = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
+function hsvToRgb({ h, s, v }) {
+  const f = (n) => {
+    const k = (n + h / 60) % 6;
+    return v * (1 - s * Math.max(0, Math.min(k, 4 - k, 1))) * 255;
+  };
+  return [f(5), f(3), f(1)];
+}
+
+function rgbToHsv([r, g, b]) {
+  [r, g, b] = [r / 255, g / 255, b / 255];
+  const max = Math.max(r, g, b), d = max - Math.min(r, g, b);
+  let h = 0;
+  if (d) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h = (h * 60 + 360) % 360;
+  }
+  return { h, s: max ? d / max : 0, v: max };
+}
+
 // '#C8643B', 'c8643b', '#c63', 'rgb(200, 100, 59)', '200,100,59', '200 100 59' → '#c8643b'
 function parseColor(text) {
   const s = text.trim().toLowerCase();
@@ -825,51 +862,131 @@ function parseColor(text) {
   m = s.match(/^(?:rgb\s*\()?\s*(\d{1,3})\s*[,\s]\s*(\d{1,3})\s*[,\s]\s*(\d{1,3})\s*\)?$/);
   if (m) {
     const v = m.slice(1).map(Number);
-    if (v.every((n) => n <= 255)) return `#${v.map((n) => n.toString(16).padStart(2, '0')).join('')}`;
+    if (v.every((n) => n <= 255)) return toHex(v);
   }
   return null;
 }
 
-function renderColorFields() {
-  colorFields.textContent = '';
+// 선택기 화면(손잡이 위치, 값 입력칸)을 hsv에 맞춤. skip: 지금 입력 중인 칸은 건드리지 않음
+function renderPicker(skip) {
+  const hex = toHex(hsvToRgb(hsv));
+  svBox.style.setProperty('--hue', `hsl(${hsv.h} 100% 50%)`);
+  svThumb.style.left = `${hsv.s * 100}%`;
+  svThumb.style.top = `${(1 - hsv.v) * 100}%`;
+  svThumb.style.background = hex;
+  hueThumb.style.left = `${(hsv.h / 360) * 100}%`;
+  pickPreview.style.background = hex;
+  if (skip !== hexInput) {
+    hexInput.value = hex.toUpperCase();
+    hexInput.classList.remove('invalid');
+  }
+  if (skip !== 'rgb') fromHex(hex).forEach((n, i) => { rgbInputs[i].value = n; });
+  pickerEl.classList.toggle('inactive', selectedParts.size === 0);
+}
+
+// 선택한 부분 모두에 현재 색 적용 (한 프레임에 한 번만)
+let applyQueued = false;
+function applyPicked() {
+  if (applyQueued || selectedParts.size === 0) return;
+  applyQueued = true;
+  requestAnimationFrame(() => {
+    applyQueued = false;
+    const hex = toHex(hsvToRgb(hsv));
+    const custom = ensureCustom();
+    for (const key of selectedParts) custom[key] = hex;
+    save();
+    applyTheme();
+    renderThemeList();
+    renderChips();
+  });
+}
+
+function setFromHex(hex, skip) {
+  Object.assign(hsv, rgbToHsv(fromHex(hex)));
+  renderPicker(skip);
+  applyPicked();
+}
+
+function renderChips() {
   const c = themeColors();
+  partChips.textContent = '';
   for (const [key, label] of COLOR_FIELDS) {
-    const wrap = document.createElement('label');
-    wrap.className = 'color-field';
-    const swatch = document.createElement('span');
-    swatch.className = 'swatch-dot';
-    swatch.style.background = c[key];
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'part-chip' + (selectedParts.has(key) ? ' selected' : '');
+    b.setAttribute('aria-pressed', selectedParts.has(key));
+    const dot = document.createElement('span');
+    dot.className = 'swatch-dot';
+    dot.style.background = c[key];
     const name = document.createElement('span');
-    name.className = 'color-name';
     name.textContent = label;
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.value = c[key].toUpperCase();
-    input.placeholder = '#RRGGBB';
-    input.autocapitalize = 'off';
-    input.spellcheck = false;
-    input.maxLength = 20;
-    input.setAttribute('aria-label', `${label} 색 (HEX 또는 RGB)`);
-    // 입력하는 대로 바로 반영, 형식이 틀리면 빨간 테두리만 표시
-    input.addEventListener('input', () => {
-      const hex = parseColor(input.value);
-      input.classList.toggle('invalid', !hex && input.value.trim() !== '');
-      if (!hex) return;
-      swatch.style.background = hex;
-      ensureCustom()[key] = hex;
-      save();
-      applyTheme();
-      renderThemeList();
+    b.append(dot, name);
+    b.addEventListener('click', () => {
+      if (selectedParts.has(key)) {
+        selectedParts.delete(key);
+      } else {
+        selectedParts.add(key);
+        if (selectedParts.size === 1) {
+          // 하나만 골랐으면 그 부분의 지금 색에서 시작
+          Object.assign(hsv, rgbToHsv(fromHex(themeColors()[key])));
+        } else {
+          // 여러 개를 고르면 지금 선택기 색으로 맞춤
+          applyPicked();
+        }
+      }
+      renderChips();
+      renderPicker();
     });
-    // 입력을 마치면 HEX로 정리하고, 틀린 값이면 원래 색으로 되돌림
-    input.addEventListener('change', () => {
-      input.value = themeColors()[key].toUpperCase();
-      input.classList.remove('invalid');
-    });
-    wrap.append(swatch, name, input);
-    colorFields.appendChild(wrap);
+    partChips.appendChild(b);
   }
 }
+
+function renderColorFields() {
+  const first = [...selectedParts][0];
+  if (first) Object.assign(hsv, rgbToHsv(fromHex(themeColors()[first])));
+  renderChips();
+  renderPicker();
+}
+
+// 네모·막대를 손가락으로 끌어서 고르기
+function dragOn(el, onMove) {
+  const move = (e) => {
+    const r = el.getBoundingClientRect();
+    const x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    const y = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+    onMove(x, y);
+    renderPicker();
+    applyPicked();
+  };
+  el.addEventListener('pointerdown', (e) => {
+    if (selectedParts.size === 0) return;
+    el.setPointerCapture(e.pointerId);
+    move(e);
+    el.addEventListener('pointermove', move);
+  });
+  const stop = () => el.removeEventListener('pointermove', move);
+  el.addEventListener('pointerup', stop);
+  el.addEventListener('pointercancel', stop);
+}
+dragOn(svBox, (x, y) => { hsv.s = x; hsv.v = 1 - y; });
+dragOn(hueBar, (x) => { hsv.h = Math.min(359.9, x * 360); });
+
+hexInput.addEventListener('input', () => {
+  const hex = parseColor(hexInput.value);
+  hexInput.classList.toggle('invalid', !hex && hexInput.value.trim() !== '');
+  if (hex) setFromHex(hex, hexInput);
+});
+hexInput.addEventListener('change', () => renderPicker());
+
+rgbInputs.forEach((input) => {
+  input.addEventListener('input', () => {
+    const v = rgbInputs.map((i) => Number(i.value));
+    if (v.every((n) => Number.isInteger(n) && n >= 0 && n <= 255) && rgbInputs.every((i) => i.value !== '')) {
+      setFromHex(toHex(v), 'rgb');
+    }
+  });
+  input.addEventListener('change', () => renderPicker());
+});
 
 function renderPhraseInput() {
   phraseInput.value = currentPhrase();
