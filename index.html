@@ -51,7 +51,12 @@
   <!-- 설정 -->
   <dialog id="settingsDialog" class="sheet">
     <form method="dialog">
-      <h2>설정</h2>
+      <div class="sheet-head">
+        <h2>설정</h2>
+        <button value="close" class="close-btn" aria-label="닫기">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
 
       <h3>컬러</h3>
       <div id="themeList" class="theme-list"></div>
@@ -65,32 +70,23 @@
       <textarea id="phraseInput" class="phrase-input" rows="2" maxlength="40" placeholder="비워 두면 문구 없이 표시돼요"></textarea>
       <button type="button" id="phraseReset" class="link-btn">테마 기본 문구로 되돌리기</button>
 
-      <h3>알람 시간</h3>
-      <div class="segmented" data-setting="alarmSeconds">
-        <button type="button" data-value="3">3초</button>
-        <button type="button" data-value="30">30초</button>
+      <h3>타이머가 끝나면</h3>
+      <div class="slider-field">
+        <div class="slider-label">
+          <span>알람이 울리는 시간</span>
+          <output id="alarmSecondsValue"></output>
+        </div>
+        <input type="range" id="alarmSecondsInput" min="1" max="60" step="1">
+        <p class="note">타이머가 0이 된 뒤 알람(소리·진동·깜빡임)이 계속되는 시간이에요. 화면을 누르면 바로 꺼져요.</p>
       </div>
-
-      <h3>알람 음량</h3>
-      <div class="segmented" data-setting="volume">
-        <button type="button" data-value="0">무음</button>
-        <button type="button" data-value="1">작게</button>
-        <button type="button" data-value="2">크게</button>
-      </div>
+      <label class="toggle"><input type="checkbox" id="optAlarmSound"><span>알람 소리</span></label>
+      <label class="toggle"><input type="checkbox" id="optVibrate"><span>진동</span></label>
+      <label class="toggle"><input type="checkbox" id="optLight"><span>화면 깜빡임</span></label>
 
       <h3>기타</h3>
       <label class="toggle"><input type="checkbox" id="optDialSound"><span>다이얼 돌릴 때 소리</span></label>
-      <label class="toggle"><input type="checkbox" id="optVibrate"><span>알람 진동</span></label>
-      <label class="toggle"><input type="checkbox" id="optLight"><span>LIGHT: 알람 때 화면 깜빡임</span></label>
       <label class="toggle"><input type="checkbox" id="optReadout"><span>남은 시간 숫자로 표시</span></label>
       <label class="toggle"><input type="checkbox" id="optNotify"><span>화면이 꺼졌을 때 알림 보내기</span></label>
-
-      <p class="note">LIGHT를 켜 두면 알람이 울리는 동안 화면이 깜빡여요. 30초 알람이면 약 30번 깜빡여요.</p>
-
-      <div class="sheet-actions">
-        <span class="spacer"></span>
-        <button value="close" class="primary">닫기</button>
-      </div>
     </form>
   </dialog>
 

@@ -36,7 +36,7 @@ const DEFAULTS = {
   custom: null,
   presets: [null, null, null, null],
   alarmSeconds: 30,
-  volume: 1,
+  alarmSound: true,
   light: false,
   dialSound: true,
   vibrate: true,
@@ -51,6 +51,12 @@ function loadSettings() {
   try {
     const saved = { ...DEFAULTS, ...JSON.parse(localStorage.getItem(STORE_KEY)) };
     if (saved.theme !== 'custom' && !THEMES[saved.theme]) saved.theme = DEFAULTS.theme;
+    // 이전 버전의 3단계 음량 설정 → 켬/끔
+    if ('volume' in saved) {
+      saved.alarmSound = saved.volume > 0;
+      delete saved.volume;
+    }
+    saved.alarmSeconds = Math.min(60, Math.max(1, Math.round(Number(saved.alarmSeconds)) || 30));
     return saved;
   } catch {
     return { ...DEFAULTS };
@@ -355,7 +361,7 @@ function playClick() {
   src.start();
 }
 
-const VOLUME_GAIN = [0, 0.05, 0.22];
+const ALARM_GAIN = 0.18;
 
 function beepPattern(seconds, gainValue) {
   const a = audio();
@@ -393,7 +399,7 @@ function startAlarm() {
   alarmActive = true;
   const secs = settings.alarmSeconds;
 
-  alarmGain = beepPattern(secs, VOLUME_GAIN[settings.volume] ?? 0);
+  alarmGain = settings.alarmSound ? beepPattern(secs, ALARM_GAIN) : null;
 
   if (settings.vibrate && navigator.vibrate) {
     const pattern = [];
@@ -738,19 +744,24 @@ phraseReset.addEventListener('click', () => {
   renderPhraseInput();
 });
 
-document.querySelectorAll('.segmented').forEach((group) => {
-  const key = group.dataset.setting;
-  group.addEventListener('click', (e) => {
-    const b = e.target.closest('button');
-    if (!b) return;
-    settings[key] = Number(b.dataset.value);
-    save();
-    renderSettings();
-    if (key === 'volume') beepPattern(1, VOLUME_GAIN[settings.volume]); // 미리 듣기
-  });
+const alarmSecondsInput = document.getElementById('alarmSecondsInput');
+const alarmSecondsValue = document.getElementById('alarmSecondsValue');
+
+function renderAlarmSeconds() {
+  alarmSecondsInput.value = settings.alarmSeconds;
+  alarmSecondsValue.textContent = `${settings.alarmSeconds}초`;
+  // 슬라이더 채워진 부분 표시
+  alarmSecondsInput.style.setProperty('--fill', `${((settings.alarmSeconds - 1) / 59) * 100}%`);
+}
+
+alarmSecondsInput.addEventListener('input', () => {
+  settings.alarmSeconds = Number(alarmSecondsInput.value);
+  renderAlarmSeconds();
+  save();
 });
 
 const toggles = {
+  optAlarmSound: 'alarmSound',
   optDialSound: 'dialSound',
   optVibrate: 'vibrate',
   optReadout: 'readout',
@@ -769,6 +780,7 @@ for (const [id, key] of Object.entries(toggles)) {
       }
       input.checked = settings.notify;
     }
+    if (key === 'alarmSound' && input.checked) beepPattern(1, ALARM_GAIN); // 미리 듣기
     save();
     render(true);
   });
@@ -778,10 +790,7 @@ function renderSettings() {
   renderThemeList();
   renderColorFields();
   renderPhraseInput();
-  document.querySelectorAll('.segmented').forEach((group) => {
-    const v = String(settings[group.dataset.setting]);
-    for (const b of group.children) b.classList.toggle('selected', b.dataset.value === v);
-  });
+  renderAlarmSeconds();
   for (const [id, key] of Object.entries(toggles)) document.getElementById(id).checked = !!settings[key];
 }
 
