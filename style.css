@@ -318,8 +318,11 @@ body.focus .hint.nudge { opacity: 1; }
 }
 .tp-text {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 8px;
+  right: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   bottom: 18px;
   text-align: center;
   font-size: 11px;

@@ -81,7 +81,7 @@
 
         <h3>설정</h3>
         <ul>
-          <li>컬러 테마와 가운데 문구를 바꿀 수 있어요.</li>
+          <li>컬러 테마를 고르고, 테마마다 가운데 문구를 따로 정할 수 있어요.</li>
           <li><b>+ 새 테마</b>로 나만의 테마를 여러 개 만들 수 있어요. 만든 테마는 길게 눌러 수정하거나 삭제해요.</li>
           <li>알람이 울리는 시간, 소리, 진동, 화면 깜빡임을 정할 수 있어요.</li>
         </ul>
@@ -107,11 +107,14 @@
 
       <div id="themePreview" class="theme-preview" aria-hidden="true">
         <div class="tp-btn"></div>
-        <div class="tp-body"><div class="tp-face"><div class="tp-sector"></div><span class="tp-text">Aa</span><div class="tp-knob"></div></div></div>
+        <div class="tp-body"><div class="tp-face"><div class="tp-sector"></div><span class="tp-text"></span><div class="tp-knob"></div></div></div>
       </div>
 
       <h3>테마 이름</h3>
       <input id="themeName" class="text-input" type="text" maxlength="12" placeholder="예: 바다">
+
+      <h3>가운데 문구</h3>
+      <textarea id="themePhrase" class="phrase-input" rows="2" maxlength="40" placeholder="비워 두면 문구 없이 표시돼요"></textarea>
 
       <h3>색상</h3>
       <p class="note color-hint">바꿀 부분을 고르세요. 여러 개를 고르면 모두 같은 색이 돼요.</p>
@@ -153,7 +156,7 @@
 
       <button type="button" id="editThemeBtn" class="link-btn">선택한 테마 수정·삭제</button>
 
-      <h3>가운데 문구</h3>
+      <h3 id="phraseLabel">가운데 문구</h3>
       <textarea id="phraseInput" class="phrase-input" rows="2" maxlength="40" placeholder="비워 두면 문구 없이 표시돼요"></textarea>
       <button type="button" id="phraseReset" class="link-btn">테마 기본 문구로 되돌리기</button>
 
