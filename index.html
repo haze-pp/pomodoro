@@ -82,6 +82,7 @@
         <h3>설정</h3>
         <ul>
           <li>컬러 테마와 가운데 문구를 바꿀 수 있어요.</li>
+          <li><b>+ 새 테마</b>로 나만의 테마를 여러 개 만들 수 있어요. 만든 테마는 길게 눌러 수정하거나 삭제해요.</li>
           <li>알람이 울리는 시간, 소리, 진동, 화면 깜빡임을 정할 수 있어요.</li>
         </ul>
 
@@ -90,6 +91,49 @@
           <li>타이머가 도는 동안에는 화면이 꺼지지 않아요.</li>
           <li>다른 앱으로 가거나 화면을 끄면 알람이 늦게 울릴 수 있어요. 설정에서 <b>화면이 꺼졌을 때 알림 보내기</b>를 켜 두면 알림으로 알려 줘요.</li>
         </ul>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 테마 만들기·수정 -->
+  <dialog id="themeDialog" class="sheet">
+    <form method="dialog">
+      <div class="sheet-head">
+        <h2 id="themeDialogTitle">새 테마</h2>
+        <button value="cancel" class="close-btn" aria-label="닫기" formnovalidate>
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+
+      <div id="themePreview" class="theme-preview" aria-hidden="true">
+        <div class="tp-btn"></div>
+        <div class="tp-body"><div class="tp-face"><div class="tp-sector"></div><span class="tp-text">Aa</span><div class="tp-knob"></div></div></div>
+      </div>
+
+      <h3>테마 이름</h3>
+      <input id="themeName" class="text-input" type="text" maxlength="12" placeholder="예: 바다">
+
+      <h3>색상</h3>
+      <p class="note color-hint">바꿀 부분을 고르세요. 여러 개를 고르면 모두 같은 색이 돼요.</p>
+      <div id="partChips" class="part-chips"></div>
+      <div id="picker" class="picker">
+        <div id="svBox" class="sv-box"><div id="svThumb" class="sv-thumb"></div></div>
+        <div id="hueBar" class="hue-bar"><div id="hueThumb" class="hue-thumb"></div></div>
+        <div class="color-values">
+          <span id="pickPreview" class="pick-preview"></span>
+          <label class="hex-field">HEX <input id="hexInput" type="text" maxlength="20" autocapitalize="off" spellcheck="false"></label>
+        </div>
+        <div class="color-values rgb-fields">
+          <label>R <input id="rIn" type="number" min="0" max="255" inputmode="numeric"></label>
+          <label>G <input id="gIn" type="number" min="0" max="255" inputmode="numeric"></label>
+          <label>B <input id="bIn" type="number" min="0" max="255" inputmode="numeric"></label>
+        </div>
+      </div>
+      <div class="sheet-actions">
+        <button type="button" id="themeDelete" class="danger">삭제</button>
+        <span class="spacer"></span>
+        <button value="cancel" formnovalidate>취소</button>
+        <button value="save" class="primary">저장</button>
       </div>
     </form>
   </dialog>
@@ -107,24 +151,7 @@
       <h3>컬러</h3>
       <div id="themeList" class="theme-list"></div>
 
-      <details id="customBox" class="custom-box">
-        <summary>색상 직접 바꾸기</summary>
-        <p class="note color-hint">바꿀 부분을 고르세요. 여러 개를 고르면 모두 같은 색이 돼요.</p>
-        <div id="partChips" class="part-chips"></div>
-        <div id="picker" class="picker">
-          <div id="svBox" class="sv-box"><div id="svThumb" class="sv-thumb"></div></div>
-          <div id="hueBar" class="hue-bar"><div id="hueThumb" class="hue-thumb"></div></div>
-          <div class="color-values">
-            <span id="pickPreview" class="pick-preview"></span>
-            <label class="hex-field">HEX <input id="hexInput" type="text" maxlength="20" autocapitalize="off" spellcheck="false"></label>
-          </div>
-          <div class="color-values rgb-fields">
-            <label>R <input id="rIn" type="number" min="0" max="255" inputmode="numeric"></label>
-            <label>G <input id="gIn" type="number" min="0" max="255" inputmode="numeric"></label>
-            <label>B <input id="bIn" type="number" min="0" max="255" inputmode="numeric"></label>
-          </div>
-        </div>
-      </details>
+      <button type="button" id="editThemeBtn" class="link-btn">선택한 테마 수정·삭제</button>
 
       <h3>가운데 문구</h3>
       <textarea id="phraseInput" class="phrase-input" rows="2" maxlength="40" placeholder="비워 두면 문구 없이 표시돼요"></textarea>

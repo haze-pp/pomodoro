@@ -247,6 +247,86 @@ body.focus .hint.nudge { opacity: 1; }
   font-size: 12px !important;
 }
 .theme-card.selected { outline: 2px solid #222; outline-offset: -2px; }
+.theme-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.theme-card.add-theme { background: #fff !important; border-style: dashed !important; color: #666 !important; }
+.theme-card .plus { font-size: 20px; line-height: 14px; height: 14px; }
+#editThemeBtn { margin-top: 4px; }
+
+.text-input {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 15px;
+}
+
+/* 테마 편집 미리보기 (작은 시계) */
+.theme-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 18px 0 16px;
+  border-radius: 14px;
+  background: var(--p-bg);
+}
+.tp-btn {
+  width: 52px;
+  height: 12px;
+  margin-bottom: -2px;
+  border-radius: 4px 4px 0 0;
+  background: var(--p-pause);
+}
+.tp-body {
+  display: grid;
+  place-items: center;
+  width: 128px;
+  height: 124px;
+  border-radius: 16px;
+  background: var(--p-body);
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--p-body) 80%, #000);
+}
+.tp-face {
+  position: relative;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  background: var(--p-face);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--p-body) 90%, #000), inset 0 0 0 5px var(--p-face), inset 0 0 0 7px var(--p-ticks);
+}
+.tp-sector {
+  position: absolute;
+  inset: 16px;
+  border-radius: 50%;
+  background: conic-gradient(var(--p-sector) 0 130deg, transparent 0);
+}
+.tp-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--p-knob);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+}
+.tp-text {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 18px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  font-style: italic;
+  color: var(--p-phrase);
+}
 .swatch { display: flex; gap: 2px; }
 .swatch i { width: 14px; height: 14px; border-radius: 3px; display: block; }
 
