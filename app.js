@@ -160,34 +160,34 @@ function polar(r, deg) {
 
 const shade = (v, pct, to = '#000') => `color-mix(in srgb, var(${v}) ${pct}%, ${to})`;
 
-let sectorEl, knobRotEl, phraseEl, startG, startCap, startLabel, resetG, resetCap, resetLabel, hitEl;
+let sectorEl, knobRotEl, phraseEl, startG, startCap, startLabel, resetG, resetCap, hitEl;
 let startPressed = false;
 let resetPressed = false;
 const tickEls = [];
 const BODY_TOP = 40;               // 본체 윗면 y
 
 function buildClock() {
-  // 상단 START/PAUSE 버튼 (본체 뒤에 그려서 아랫부분이 가려지게)
+  // 버튼 입체감: 위쪽은 밝게, 본체에 가까울수록 살짝 어둡게
+  const defs = el('defs', {}, svg);
+  const grad = el('linearGradient', { id: 'capShade', x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
+  for (const [offset, color, opacity] of [
+    [0, '#fff', 0.32], [0.18, '#fff', 0], [0.5, '#000', 0], [0.76, '#000', 0.18], [1, '#000', 0.18],
+  ]) el('stop', { offset, 'stop-color': color, 'stop-opacity': opacity }, grad);
+
+  // 상단 버튼 (본체 뒤에 그려서 아랫부분이 가려지게)
   // RESET: 진행 중에만 본체 뒤에서 올라옴
   resetG = el('g', { class: 'top-btn reset-g', role: 'button', 'aria-label': '처음 시간으로 되돌리기' }, svg);
-  el('rect', { x: 238, y: 0, width: 100, height: BODY_TOP, fill: 'transparent' }, resetG);
-  resetCap = el('rect', {
-    x: 246, rx: 10, width: 84, height: 70,
-    style: 'fill:color-mix(in srgb, var(--body) 50%, var(--face))',
-  }, resetG);
-  resetLabel = el('text', {
-    x: 288, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 12,
-    'font-weight': 700, 'letter-spacing': 1.5, class: 'cap-label', style: 'fill:var(--ticks)',
-  }, resetG);
-  resetLabel.textContent = 'RESET';
+  resetCap = makeCap(resetG, {
+    x: 246, width: 84, fill: 'var(--reset-bg)', ink: 'var(--reset-ink)',
+    label: 'RESET', fontSize: 12, spacing: 1.5,
+  });
 
   startG = el('g', { class: 'top-btn start-g', role: 'button', 'aria-label': '시작 / 일시정지' }, svg);
-  el('rect', { x: 110, y: 0, width: 180, height: BODY_TOP, fill: 'transparent' }, startG);
-  startCap = el('rect', { x: 122, rx: 10, width: 156, height: 70, style: 'fill:var(--pause)' }, startG);
-  startLabel = el('text', {
-    x: CX, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 15,
-    'font-weight': 700, 'letter-spacing': 2.5, class: 'cap-label', style: 'fill:var(--pause-ink)',
-  }, startG);
+  startCap = makeCap(startG, {
+    x: 122, width: 156, fill: 'var(--pause)', ink: 'var(--pause-ink)',
+    label: 'START', fontSize: 15, spacing: 2.5,
+  });
+  startLabel = startCap.querySelector('text');
 
   // 본체
   const body = { x: 12, y: BODY_TOP, width: 376, height: 372, rx: 40 };
@@ -252,6 +252,9 @@ function buildClock() {
   // 버튼은 누르는 동안만 눌린 모양
   const pressable = (g, set, onClick) => {
     const press = (down) => () => { set(down); render(true); };
+    g.addEventListener('pointerdown', () => {
+      if (settings.vibrate && navigator.vibrate) navigator.vibrate(8); // 딸깍 손맛
+    });
     g.addEventListener('pointerdown', press(true));
     for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) g.addEventListener(ev, press(false));
     g.addEventListener('click', onClick);
@@ -260,11 +263,21 @@ function buildClock() {
   pressable(resetG, (v) => { resetPressed = v; }, resetTimer);
 }
 
-// 상단 버튼: 본체 윗면 위로 보이는 높이를 바꿔 눌림 표현
-function setCap(cap, label, pressed) {
-  const y = pressed ? 15 : 2;
-  cap.setAttribute('y', y);
-  label.setAttribute('y', (y + BODY_TOP) / 2);
+// 상단 실물 버튼: 버튼 면 + 입체 음영 + 윗면 하이라이트 + 글자를 한 묶음으로
+// 아랫부분은 본체 뒤에 가려지고, 누르면 묶음 전체가 아래로 들어감
+const CAP_TOP = 2;
+function makeCap(g, { x, width, fill, ink, label, fontSize, spacing }) {
+  el('rect', { x: x - 10, y: 0, width: width + 20, height: BODY_TOP, fill: 'transparent' }, g);
+  const cap = el('g', { class: 'cap' }, g);
+  el('rect', { x, y: CAP_TOP, width, height: 70, rx: 10, style: `fill:${fill}` }, cap);
+  el('rect', { x, y: CAP_TOP, width, height: 50, rx: 10, fill: 'url(#capShade)' }, cap);
+  el('rect', { x: x + 6, y: CAP_TOP + 2, width: width - 12, height: 2, rx: 1, fill: 'rgba(255,255,255,.35)' }, cap);
+  const t = el('text', {
+    x: x + width / 2, y: (CAP_TOP + BODY_TOP) / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+    'font-size': fontSize, 'font-weight': 700, 'letter-spacing': spacing, class: 'cap-label', style: `fill:${ink}`,
+  }, cap);
+  t.textContent = label;
+  return cap;
 }
 
 function sectorPath(min) {
@@ -327,8 +340,8 @@ function render(force) {
   }
 
   // 상단 버튼 눌림 상태
-  setCap(startCap, startLabel, startPressed);
-  setCap(resetCap, resetLabel, resetPressed);
+  startCap.classList.toggle('pressed', startPressed);
+  resetCap.classList.toggle('pressed', resetPressed);
   // 진행 중엔 START/PAUSE가 왼쪽으로 비켜서고 RESET이 올라옴
   startG.classList.toggle('shifted', timer.started);
   resetG.classList.toggle('shown', timer.started);
@@ -691,14 +704,23 @@ presetDialog.addEventListener('close', () => {
 /* ───────── 테마 ───────── */
 const metaTheme = document.querySelector('meta[name="theme-color"]');
 
-// 버튼 색이 밝으면 어두운 글자, 어두우면 흰 글자
-function inkOn(hex) {
+function luminance(hex) {
   const n = parseInt(hex.slice(1), 16);
   const [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255].map((v) => {
     v /= 255;
     return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
   });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? 'rgba(30,32,30,.78)' : 'rgba(255,255,255,.92)';
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrast(a, b) {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+// 버튼 색이 밝으면 어두운 글자, 어두우면 흰 글자
+function inkOn(hex) {
+  return luminance(hex) > 0.4 ? 'rgba(30,32,30,.78)' : 'rgba(255,255,255,.92)';
 }
 
 function applyTheme() {
@@ -706,6 +728,10 @@ function applyTheme() {
   const root = document.documentElement.style;
   for (const [key] of COLOR_FIELDS) root.setProperty(`--${key}`, c[key]);
   root.setProperty('--pause-ink', inkOn(c.pause));
+  // RESET은 눈금 색으로 칠하되, 본체와 구분이 안 되면 다이얼 판 색으로
+  const resetBg = contrast(c.ticks, c.body) >= 2 ? c.ticks : c.face;
+  root.setProperty('--reset-bg', resetBg);
+  root.setProperty('--reset-ink', inkOn(resetBg));
   root.setProperty('--ink', inkOn(c.bg));
   root.setProperty('--body-ink', inkOn(c.body));
   metaTheme.setAttribute('content', c.bg);
