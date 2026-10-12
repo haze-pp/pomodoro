@@ -1,0 +1,354 @@
+:root {
+  --bg: #e4e8df;
+  --body: #b7c4ae;
+  --face: #fbfbf7;
+  --sector: #c8643b;
+  --knob: #f4f0e7;
+  --pause: #c8643b;
+  --ticks: #4a5847;
+  --phrase: #c8643b;
+  --ink: rgba(30, 32, 30, .78);
+  --body-ink: rgba(30, 32, 30, .78);
+  /* 영문·숫자는 Manrope, 한글은 Pretendard (fonts/ 폴더에 포함) */
+  font-family: "Manrope Variable", "Pretendard Variable", system-ui, -apple-system, Roboto, "Noto Sans KR", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+* { box-sizing: border-box; }
+
+button, input, textarea { font-family: inherit; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background-color .3s;
+}
+
+.icon-btn {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--body) 70%, transparent);
+  color: var(--body-ink);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+#app {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  transition: gap .45s ease;
+  width: 100%;
+  max-width: 640px;
+}
+
+.clock-area {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#clock {
+  width: 100%;
+  max-height: 70dvh;
+  touch-action: none;
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .14));
+}
+
+#clock .dial-hit { cursor: grab; }
+#clock .top-btn { cursor: pointer; }
+#clock .cap-label { pointer-events: none; font-family: inherit; }
+
+.readout {
+  margin: 8px 0 0;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .04em;
+  color: var(--ink);
+  opacity: .75;
+  min-height: 1.4em;
+  transition: transform .15s, opacity .15s;
+}
+.readout.hidden { visibility: hidden; }
+/* 다이얼을 돌리는 중: 손가락에 가려지지 않게 크게 */
+.readout.setting { transform: scale(1.35); opacity: 1; font-weight: 600; }
+
+.presets {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 0 0 auto;
+  max-width: 64px;
+  transition: opacity .3s ease, transform .45s ease, max-width .45s ease;
+}
+
+/* 타이머 진행 중: 버튼은 옆으로 빠지고 시계가 가운데로 */
+body.focus #app { gap: 0; }
+body.focus .presets {
+  opacity: 0;
+  transform: translateX(48px);
+  max-width: 0;
+  pointer-events: none;
+}
+.hint { transition: opacity .3s; }
+body.focus .hint { opacity: 0; }
+.hint.nudge { animation: nudge .4s; opacity: 1; }
+@keyframes nudge {
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+.preset {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  border: 2px solid color-mix(in srgb, var(--body) 60%, var(--ticks));
+  background: var(--body);
+  color: var(--body-ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--body) 70%, #000);
+  transition: transform .08s, box-shadow .08s;
+}
+.preset:active { transform: translateY(2px); box-shadow: 0 1px 0 color-mix(in srgb, var(--body) 70%, #000); }
+.preset.empty {
+  background: transparent;
+  border-style: dashed;
+  box-shadow: none;
+  color: var(--ink);
+  font-size: 26px;
+  font-weight: 300;
+  opacity: .7;
+}
+.preset.active { border-color: var(--sector); }
+
+.hint {
+  margin: 14px 0 0;
+  font-size: 13px;
+  opacity: .6;
+  text-align: center;
+}
+body.focus .hint.nudge { opacity: 1; }
+
+/* 알람 깜빡임 */
+.flash {
+  position: fixed;
+  inset: 0;
+  background: #fff;
+  pointer-events: none;
+  opacity: 0;
+}
+.flash.on { opacity: .85; }
+
+/* 시트(다이얼로그) */
+.sheet {
+  border: 0;
+  border-radius: 20px;
+  padding: 20px;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  background: #fff;
+  color: #222;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .25);
+}
+.sheet::backdrop { background: rgba(0, 0, 0, .35); }
+.sheet h2 { margin: 0 0 12px; font-size: 18px; }
+.sheet h3 { margin: 18px 0 8px; font-size: 13px; color: #777; font-weight: 600; }
+
+.sheet-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+}
+.spacer { flex: 1; }
+.sheet button {
+  font: inherit;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  background: #f5f5f5;
+  color: #222;
+  cursor: pointer;
+}
+.sheet button.primary { background: #222; color: #fff; border-color: #222; }
+.sheet button.danger { color: #c0392b; background: #fff; }
+
+.minutes-input {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  justify-content: center;
+}
+.minutes-input input {
+  width: 120px;
+  font-size: 40px;
+  text-align: center;
+  border: 0;
+  border-bottom: 2px solid #222;
+  padding: 4px;
+  outline: none;
+}
+.minutes-input span { font-size: 20px; }
+
+.theme-list {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.theme-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 4px !important;
+  font-size: 12px !important;
+}
+.theme-card.selected { outline: 2px solid #222; outline-offset: -2px; }
+.swatch { display: flex; gap: 2px; }
+.swatch i { width: 14px; height: 14px; border-radius: 3px; display: block; }
+
+.custom-box { margin-top: 12px; }
+.custom-box summary { cursor: pointer; font-size: 14px; padding: 6px 0; }
+.color-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+  margin: 8px 0;
+}
+.color-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.color-field input {
+  width: 36px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: none;
+}
+.phrase-input {
+  display: block;
+  width: 100%;
+  font: inherit;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  resize: none;
+}
+
+.sheet .link-btn {
+  border: 0;
+  background: none;
+  padding: 6px 0;
+  font-size: 13px;
+  color: #666;
+  text-decoration: underline;
+}
+
+.sheet-head {
+  position: sticky;
+  top: -20px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: -20px -20px 0;
+  padding: 16px 12px 8px 20px;
+  background: #fff;
+}
+.sheet-head h2 { margin: 0; }
+.sheet .close-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: #444;
+  display: grid;
+  place-items: center;
+}
+.sheet .close-btn:active { background: #f0f0f0; }
+
+.slider-field { margin-bottom: 6px; }
+.slider-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 14px;
+}
+.slider-label output { font-weight: 700; font-variant-numeric: tabular-nums; }
+.slider-field .note { margin-top: 6px; }
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 28px;
+  margin: 6px 0 0;
+  background: transparent;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, #222 var(--fill, 50%), #e2e2e2 var(--fill, 50%));
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  margin-top: -9px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #222;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .2);
+}
+input[type="range"]::-moz-range-track { height: 6px; border-radius: 3px; background: #e2e2e2; }
+input[type="range"]::-moz-range-progress { height: 6px; border-radius: 3px; background: #222; }
+input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #fff; border: 2px solid #222; }
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 14px;
+}
+.toggle input { width: 18px; height: 18px; }
+
+.note { font-size: 12px; color: #777; line-height: 1.5; margin: 14px 0 0; }
+
+/* 가로 화면 */
+@media (orientation: landscape) and (max-height: 520px) {
+  #clock { max-height: 78dvh; }
+  .hint { display: none; }
+  .readout { font-size: 18px; margin-top: 4px; }
+}

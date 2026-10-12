@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#e4e8df">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Focus Timer</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="fonts/manrope/manrope.css">
+  <link rel="stylesheet" href="fonts/pretendard/pretendard.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <button id="settingsBtn" class="icon-btn" aria-label="설정">
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>
+    </svg>
+  </button>
+
+  <main id="app">
+    <section class="clock-area">
+      <svg id="clock" viewBox="0 0 400 420" role="img" aria-label="타이머 다이얼"></svg>
+      <p id="readout" class="readout" aria-live="polite"></p>
+    </section>
+
+    <nav id="presets" class="presets" aria-label="자주 쓰는 시간"></nav>
+  </main>
+
+  <p id="hint" class="hint">다이얼을 돌려 시간을 맞추고 START를 눌러 주세요</p>
+
+  <!-- 자주 쓰는 시간 편집 -->
+  <dialog id="presetDialog" class="sheet">
+    <form method="dialog">
+      <h2 id="presetTitle">자주 쓰는 시간</h2>
+      <label class="minutes-input">
+        <input id="presetMinutes" type="number" inputmode="numeric" min="1" max="60" step="1" required>
+        <span>분</span>
+      </label>
+      <div class="sheet-actions">
+        <button type="button" id="presetDelete" class="danger">삭제</button>
+        <span class="spacer"></span>
+        <button value="cancel" formnovalidate>취소</button>
+        <button value="save" class="primary">저장</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 설정 -->
+  <dialog id="settingsDialog" class="sheet">
+    <form method="dialog">
+      <div class="sheet-head">
+        <h2>설정</h2>
+        <button value="close" class="close-btn" aria-label="닫기">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+
+      <h3>컬러</h3>
+      <div id="themeList" class="theme-list"></div>
+
+      <details id="customBox" class="custom-box">
+        <summary>색상 직접 바꾸기</summary>
+        <div id="colorFields" class="color-fields"></div>
+      </details>
+
+      <h3>가운데 문구</h3>
+      <textarea id="phraseInput" class="phrase-input" rows="2" maxlength="40" placeholder="비워 두면 문구 없이 표시돼요"></textarea>
+      <button type="button" id="phraseReset" class="link-btn">테마 기본 문구로 되돌리기</button>
+
+      <h3>타이머가 끝나면</h3>
+      <div class="slider-field">
+        <div class="slider-label">
+          <span>알람이 울리는 시간</span>
+          <output id="alarmSecondsValue"></output>
+        </div>
+        <input type="range" id="alarmSecondsInput" min="1" max="60" step="1">
+        <p class="note">타이머가 0이 된 뒤 알람(소리·진동·깜빡임)이 계속되는 시간이에요. 화면을 누르면 바로 꺼져요.</p>
+      </div>
+      <label class="toggle"><input type="checkbox" id="optAlarmSound"><span>알람 소리</span></label>
+      <label class="toggle"><input type="checkbox" id="optVibrate"><span>진동</span></label>
+      <label class="toggle"><input type="checkbox" id="optLight"><span>화면 깜빡임</span></label>
+
+      <h3>기타</h3>
+      <label class="toggle"><input type="checkbox" id="optDialSound"><span>다이얼 돌릴 때 소리</span></label>
+      <label class="toggle"><input type="checkbox" id="optReadout"><span>남은 시간 숫자로 표시</span></label>
+      <label class="toggle"><input type="checkbox" id="optNotify"><span>화면이 꺼졌을 때 알림 보내기</span></label>
+    </form>
+  </dialog>
+
+  <div id="flash" class="flash" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
