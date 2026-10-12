@@ -266,15 +266,24 @@ body.focus .hint.nudge { opacity: 1; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* 가져오기 목록도 테마 목록과 같은 슬라이드 동작 (카드만 작게) */
 .copy-from {
   display: flex;
   gap: 6px;
   overflow-x: auto;
-  padding-bottom: 4px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  margin: 0 -20px;
+  padding: 2px 20px 6px;
+  scroll-padding: 0 20px;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 28px), transparent);
+          mask-image: linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 28px), transparent);
 }
+.copy-from::-webkit-scrollbar { display: none; }
 .theme-card.mini {
   flex: 0 0 auto;
   min-width: 64px;
+  scroll-snap-align: start;
   padding: 8px 6px !important;
   font-size: 11px !important;
   gap: 4px;
