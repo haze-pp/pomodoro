@@ -42,6 +42,7 @@ const DEFAULTS = {
   vibrate: true,
   readout: true,
   notify: false,
+  phrase: null,      // 가운데 문구 (null이면 테마 기본 문구)
   timer: null,
 };
 
@@ -151,33 +152,20 @@ let startPressed = false;
 const tickEls = [];
 const BODY_TOP = 40;               // 본체 윗면 y
 
-// 슈퍼타원(스퀘클) 외곽선
-function squirclePath(cx, cy, rx, ry, n = 4.6, steps = 120) {
-  let d = '';
-  for (let i = 0; i < steps; i++) {
-    const t = (i / steps) * 2 * Math.PI;
-    const c = Math.cos(t), s = Math.sin(t);
-    const x = cx + rx * Math.sign(c) * Math.abs(c) ** (2 / n);
-    const y = cy + ry * Math.sign(s) * Math.abs(s) ** (2 / n);
-    d += `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`;
-  }
-  return `${d}Z`;
-}
-
 function buildClock() {
   // 상단 START/PAUSE 버튼 (본체 뒤에 그려서 아랫부분이 가려지게)
   const startG = el('g', { class: 'top-btn', role: 'button', 'aria-label': '시작 / 일시정지' }, svg);
   el('rect', { x: 110, y: 0, width: 180, height: BODY_TOP, fill: 'transparent' }, startG);
-  startCap = el('rect', { x: 122, rx: 26, width: 156, height: 70, style: 'fill:var(--pause)' }, startG);
+  startCap = el('rect', { x: 122, rx: 10, width: 156, height: 70, style: 'fill:var(--pause)' }, startG);
   startLabel = el('text', {
     x: CX, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 15,
     'font-weight': 700, 'letter-spacing': 2.5, class: 'cap-label', style: 'fill:var(--pause-ink)',
   }, startG);
 
   // 본체
-  const bodyPath = squirclePath(CX, 226, 188, 186);
-  el('path', { d: bodyPath, transform: 'translate(0 6)', style: `fill:${shade('--body', 80)}` }, svg);
-  el('path', { d: bodyPath, style: 'fill:var(--body)' }, svg);
+  const body = { x: 12, y: BODY_TOP, width: 376, height: 372, rx: 40 };
+  el('rect', { ...body, y: BODY_TOP + 6, style: `fill:${shade('--body', 80)}` }, svg);
+  el('rect', { ...body, style: 'fill:var(--body)' }, svg);
 
   // 베젤과 다이얼 판
   el('circle', { cx: CX, cy: CY, r: 173, style: `fill:${shade('--body', 90)}` }, svg);
@@ -259,9 +247,13 @@ function sectorPath(min) {
   return `M ${CX} ${CY} L ${CX} ${CY - r} A ${r} ${r} 0 ${deg > 180 ? 1 : 0} 1 ${x} ${y} Z`;
 }
 
+function currentPhrase() {
+  return settings.phrase ?? themeColors().text ?? '';
+}
+
 function renderPhrase() {
   phraseEl.textContent = '';
-  const lines = (themeColors().text || '').split('\n').slice(0, 3);
+  const lines = currentPhrase().split('\n').slice(0, 3);
   lines.forEach((line, i) => {
     const t = el('tspan', { x: CX, dy: i === 0 ? 0 : 19 }, phraseEl);
     t.textContent = line;
@@ -665,6 +657,7 @@ const settingsDialog = document.getElementById('settingsDialog');
 const themeList = document.getElementById('themeList');
 const colorFields = document.getElementById('colorFields');
 const phraseInput = document.getElementById('phraseInput');
+const phraseReset = document.getElementById('phraseReset');
 
 function ensureCustom() {
   if (settings.theme !== 'custom' || !settings.custom) {
@@ -724,14 +717,25 @@ function renderColorFields() {
     wrap.append(input, span);
     colorFields.appendChild(wrap);
   }
-  phraseInput.value = c.text || '';
+}
+
+function renderPhraseInput() {
+  phraseInput.value = currentPhrase();
+  phraseReset.hidden = settings.phrase === null;
 }
 
 phraseInput.addEventListener('input', () => {
-  ensureCustom().text = phraseInput.value;
+  settings.phrase = phraseInput.value;
+  phraseReset.hidden = false;
   save();
-  applyTheme();
-  renderThemeList();
+  renderPhrase();
+});
+
+phraseReset.addEventListener('click', () => {
+  settings.phrase = null;
+  save();
+  renderPhrase();
+  renderPhraseInput();
 });
 
 document.querySelectorAll('.segmented').forEach((group) => {
@@ -773,6 +777,7 @@ for (const [id, key] of Object.entries(toggles)) {
 function renderSettings() {
   renderThemeList();
   renderColorFields();
+  renderPhraseInput();
   document.querySelectorAll('.segmented').forEach((group) => {
     const v = String(settings[group.dataset.setting]);
     for (const b of group.children) b.classList.toggle('selected', b.dataset.value === v);
