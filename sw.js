@@ -1,11 +1,14 @@
 // 오프라인 실행용 캐시. 파일을 수정하면 VERSION을 올려 주세요.
-const VERSION = 'focus-timer-v4';
+const VERSION = 'focus-timer-v5';
 const ASSETS = [
   './',
   'index.html',
   'style.css',
   'app.js',
   'manifest.webmanifest',
+  'fonts/manrope/manrope.css',
+  'fonts/manrope/manrope-latin-wght-normal.woff2',
+  'fonts/pretendard/pretendard.css',
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/icon-maskable-512.png',
