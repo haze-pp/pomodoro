@@ -253,6 +253,20 @@ body.focus .hint.nudge { opacity: 1; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.copy-from {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.theme-card.mini {
+  flex: 0 0 auto;
+  min-width: 64px;
+  padding: 8px 6px !important;
+  font-size: 11px !important;
+  gap: 4px;
+}
+.theme-card.mini .swatch i { width: 10px; height: 10px; }
 .theme-card.add-theme { background: #fff !important; border-style: dashed !important; color: #666 !important; }
 .theme-card .plus { font-size: 20px; line-height: 14px; height: 14px; }
 #editThemeBtn { margin-top: 4px; }

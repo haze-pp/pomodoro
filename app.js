@@ -997,6 +997,26 @@ const themeNameInput = document.getElementById('themeName');
 const themePreview = document.getElementById('themePreview');
 const themeDeleteBtn = document.getElementById('themeDelete');
 const themePhraseInput = document.getElementById('themePhrase');
+const copyFrom = document.getElementById('copyFrom');
+
+// 다른 테마의 색과 문구를 편집 중인 테마로 복사 (이름은 그대로)
+function renderCopyFrom() {
+  copyFrom.textContent = '';
+  const sources = [...Object.values(THEMES), ...settings.customThemes.filter((t) => t.id !== editingId)];
+  for (const t of sources) {
+    const b = themeCard(t, false);
+    b.classList.add('mini');
+    b.addEventListener('click', () => {
+      for (const [key] of COLOR_FIELDS) draft[key] = t[key];
+      draft.text = t.text ?? '';
+      themePhraseInput.value = draft.text;
+      renderColorFields();
+      renderPreview();
+      playClick(1500);
+    });
+    copyFrom.appendChild(b);
+  }
+}
 const previewText = themePreview.querySelector('.tp-text');
 
 themePhraseInput.addEventListener('input', () => {
@@ -1022,6 +1042,7 @@ function openThemeEditor(id) {
   themeDeleteBtn.hidden = !id;
   selectedParts.clear();
   selectedParts.add('sector');
+  renderCopyFrom();
   renderColorFields();
   renderPreview();
   themeDialog.returnValue = '';
