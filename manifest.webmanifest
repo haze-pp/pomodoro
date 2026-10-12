@@ -1,7 +1,7 @@
 {
   "name": "Focus Timer",
-  "short_name": "집중 타이머",
-  "description": "다이얼을 돌려 쓰는 뽀모도로 집중 타이머",
+  "short_name": "Focus Timer",
+  "description": "A dial-style focus timer",
   "lang": "ko",
   "start_url": "./",
   "scope": "./",
