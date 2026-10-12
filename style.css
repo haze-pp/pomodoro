@@ -53,7 +53,9 @@ body {
 #app {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
+  transition: gap .45s ease;
   width: 100%;
   max-width: 640px;
 }
@@ -75,6 +77,7 @@ body {
 
 #clock .dial-hit { cursor: grab; }
 #clock .top-btn { cursor: pointer; }
+#clock .cap-label { pointer-events: none; font-family: inherit; }
 
 .readout {
   margin: 8px 0 0;
@@ -84,14 +87,35 @@ body {
   color: var(--ink);
   opacity: .75;
   min-height: 1.4em;
+  transition: transform .15s, opacity .15s;
 }
 .readout.hidden { visibility: hidden; }
+/* 다이얼을 돌리는 중: 손가락에 가려지지 않게 크게 */
+.readout.setting { transform: scale(1.35); opacity: 1; font-weight: 600; }
 
 .presets {
   display: flex;
   flex-direction: column;
   gap: 12px;
   flex: 0 0 auto;
+  max-width: 64px;
+  transition: opacity .3s ease, transform .45s ease, max-width .45s ease;
+}
+
+/* 타이머 진행 중: 버튼은 옆으로 빠지고 시계가 가운데로 */
+body.focus #app { gap: 0; }
+body.focus .presets {
+  opacity: 0;
+  transform: translateX(48px);
+  max-width: 0;
+  pointer-events: none;
+}
+.hint { transition: opacity .3s; }
+body.focus .hint { opacity: 0; }
+.hint.nudge { animation: nudge .4s; opacity: 1; }
+@keyframes nudge {
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
 }
 
 .preset {
@@ -125,6 +149,7 @@ body {
   opacity: .6;
   text-align: center;
 }
+body.focus .hint.nudge { opacity: 1; }
 
 /* 알람 깜빡임 */
 .flash {

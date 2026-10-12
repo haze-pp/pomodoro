@@ -70,7 +70,7 @@ const timer = {
   running: false,
   endAt: 0,          // running일 때 종료 시각(ms)
   remainingMs: 0,    // 멈춰 있을 때 남은 시간
-  pauseDown: false,  // 일시정지 버튼 눌림
+  started: false,    // START로 시작한 세션 진행 중(일시정지 포함)
   sessionMinutes: 0, // 이번에 맞춘 시간(알림 문구용)
 };
 let dragging = false;
@@ -89,15 +89,18 @@ function restoreTimer() {
   const t = settings.timer;
   if (!t) return;
   Object.assign(timer, t);
+  if (t.started === undefined) timer.started = timer.running;
   if (timer.running && timer.endAt <= Date.now()) {
     // 앱이 닫혀 있는 동안 끝난 타이머는 조용히 정리
+    timer.started = false;
     timer.running = false;
     timer.remainingMs = 0;
   }
 }
 
 function start() {
-  if (timer.running || timer.pauseDown || timer.remainingMs <= 0) return;
+  if (timer.running || timer.remainingMs <= 0) return;
+  timer.started = true;
   timer.running = true;
   timer.endAt = Date.now() + timer.remainingMs;
   holdWakeLock();
@@ -112,6 +115,7 @@ function stopRun() {
 }
 
 function finish() {
+  timer.started = false;
   timer.running = false;
   timer.remainingMs = 0;
   releaseWakeLock();
@@ -142,18 +146,28 @@ function polar(r, deg) {
 
 const shade = (v, pct, to = '#000') => `color-mix(in srgb, var(${v}) ${pct}%, ${to})`;
 
-let sectorEl, knobRotEl, phraseEl, pauseCap, lightCap, hitEl;
+let sectorEl, knobRotEl, phraseEl, pauseCap, pauseLabel, lightCap, lightLabel, hitEl;
+let pausePressed = false;
 const tickEls = [];
 
 function buildClock() {
   // 상단 버튼 (본체 뒤에 그려서 아랫부분이 가려지게)
-  const pauseG = el('g', { class: 'top-btn', role: 'button', 'aria-label': '일시정지' }, svg);
-  el('rect', { x: 70, y: 0, width: 144, height: 40, fill: 'transparent' }, pauseG);
-  pauseCap = el('rect', { x: 78, rx: 4, width: 128, style: 'fill:var(--pause)' }, pauseG);
+  const pauseG = el('g', { class: 'top-btn', role: 'button', 'aria-label': '시작 / 일시정지' }, svg);
+  el('rect', { x: 50, y: 0, width: 180, height: 40, fill: 'transparent' }, pauseG);
+  pauseCap = el('rect', { x: 60, rx: 6, width: 160, height: 60, style: 'fill:var(--pause)' }, pauseG);
+  pauseLabel = el('text', {
+    x: 140, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 15,
+    'font-weight': 700, 'letter-spacing': 2, class: 'cap-label', style: 'fill:var(--pause-ink)',
+  }, pauseG);
 
   const lightG = el('g', { class: 'top-btn', role: 'button', 'aria-label': '라이트' }, svg);
-  el('rect', { x: 280, y: 0, width: 76, height: 40, fill: 'transparent' }, lightG);
-  lightCap = el('rect', { x: 290, rx: 10, width: 56, style: 'fill:var(--light)' }, lightG);
+  el('rect', { x: 262, y: 0, width: 112, height: 40, fill: 'transparent' }, lightG);
+  lightCap = el('rect', { x: 270, rx: 16, width: 96, height: 60, style: 'fill:var(--light)' }, lightG);
+  lightLabel = el('text', {
+    x: 318, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 13,
+    'font-weight': 700, 'letter-spacing': 1.5, class: 'cap-label', style: 'fill:var(--light-ink)',
+  }, lightG);
+  lightLabel.textContent = 'LIGHT';
 
   // 본체
   el('rect', { x: 12, y: 42, width: 376, height: 374, rx: 34, style: `fill:${shade('--body', 82)}` }, svg);
@@ -220,8 +234,19 @@ function buildClock() {
   // 터치 영역
   hitEl = el('circle', { cx: CX, cy: CY, r: R_FACE + 10, fill: 'transparent', class: 'dial-hit' }, svg);
 
+  // 시작/일시정지 버튼은 누르는 동안만 눌린 모양
+  const press = (down) => () => { pausePressed = down; render(true); };
+  pauseG.addEventListener('pointerdown', press(true));
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) pauseG.addEventListener(ev, press(false));
   pauseG.addEventListener('click', togglePause);
   lightG.addEventListener('click', toggleLight);
+}
+
+// 상단 버튼: 본체 윗면(y=36) 위로 보이는 높이를 바꿔 눌림 표현
+function setCap(cap, label, pressed, upY, downY) {
+  const y = pressed ? downY : upY;
+  cap.setAttribute('y', y);
+  label.setAttribute('y', (y + 36) / 2 + 1);
 }
 
 function sectorPath(min) {
@@ -257,7 +282,7 @@ function fmt(ms) {
 
 function render(force) {
   const rem = remaining();
-  const key = `${Math.floor(rem / 100)}|${timer.running}|${timer.pauseDown}|${settings.light}|${settings.readout}`;
+  const key = `${Math.floor(rem / 100)}|${timer.running}|${timer.started}|${pausePressed}|${settings.light}|${settings.readout}`;
   if (!force && key === lastKey) return;
   lastKey = key;
 
@@ -280,19 +305,21 @@ function render(force) {
   }
 
   // 상단 버튼 눌림 상태
-  pauseCap.setAttribute('y', timer.pauseDown ? 28 : 14);
-  pauseCap.setAttribute('height', timer.pauseDown ? 16 : 30);
-  lightCap.setAttribute('y', settings.light ? 29 : 18);
-  lightCap.setAttribute('height', settings.light ? 15 : 26);
+  setCap(pauseCap, pauseLabel, pausePressed, 0, 13);
+  pauseLabel.textContent = timer.running ? 'PAUSE' : 'START';
+  setCap(lightCap, lightLabel, settings.light, 4, 15);
 
   // 숫자 표시
-  readoutEl.classList.toggle('hidden', !settings.readout);
+  // 다이얼을 돌리는 동안엔 손가락에 가려지지 않게 항상 크게 표시
+  readoutEl.classList.toggle('hidden', !settings.readout && !dragging);
+  readoutEl.classList.toggle('setting', dragging);
   if (rem > 0) {
-    readoutEl.textContent = (timer.pauseDown ? '일시정지 · ' : '') + fmt(rem);
+    readoutEl.textContent = (timer.started && !timer.running ? '일시정지 · ' : '') + fmt(rem);
   } else {
     readoutEl.textContent = alarmActive ? '끝! 화면을 눌러 알람 끄기' : '0:00';
   }
-  hintEl.style.visibility = timer.running ? 'hidden' : 'visible';
+  // 시작하면 자주 쓰는 시간 버튼이 빠지고 시계가 가운데로
+  document.body.classList.toggle('focus', timer.started);
 }
 
 function frame() {
@@ -450,12 +477,18 @@ function releaseWakeLock() {
 function togglePause() {
   audio();
   stopAlarm();
-  timer.pauseDown = !timer.pauseDown;
-  if (timer.pauseDown) stopRun();
-  else start();
+  if (timer.running) stopRun();
+  else if (timer.remainingMs > 0) start();
+  else nudgeHint();
   playClick();
   persistTimer();
   render(true);
+}
+
+function nudgeHint() {
+  hintEl.classList.remove('nudge');
+  void hintEl.offsetWidth; // 애니메이션 다시 시작
+  hintEl.classList.add('nudge');
 }
 
 function toggleLight() {
@@ -490,6 +523,7 @@ function setupDial() {
       dragging = true;
       stopAlarm();
       stopRun();
+      timer.started = false; // 다시 맞추는 중 → START를 눌러야 시작
     }
     let m = Math.round(pointerDeg(e) / 6);
     // 0 ↔ 60 경계를 넘어가지 않게 (실제 다이얼처럼 끝에서 멈춤)
@@ -511,7 +545,6 @@ function setupDial() {
     dragging = false;
     if (moved) {
       markActivePreset();
-      start();
       persistTimer();
     }
     render(true);
@@ -537,7 +570,7 @@ function renderPresets() {
     b.type = 'button';
     b.className = 'preset' + (m ? '' : ' empty');
     b.textContent = m ? `${m}분` : '+';
-    b.setAttribute('aria-label', m ? `${m}분 바로 시작 (길게 눌러 편집)` : '자주 쓰는 시간 추가');
+    b.setAttribute('aria-label', m ? `${m}분으로 맞추기 (길게 눌러 편집)` : '자주 쓰는 시간 추가');
 
     let pressTimer = null;
     let longPressed = false;
@@ -576,11 +609,11 @@ function usePreset(m) {
   audio();
   stopAlarm();
   stopRun();
-  timer.pauseDown = false;
+  timer.started = false;
   timer.remainingMs = m * 60000;
   timer.sessionMinutes = m;
   playClick();
-  start();
+  persistTimer();
   markActivePreset();
   render(true);
 }
@@ -616,10 +649,22 @@ presetDialog.addEventListener('close', () => {
 /* ───────── 테마 ───────── */
 const metaTheme = document.querySelector('meta[name="theme-color"]');
 
+// 버튼 색이 밝으면 어두운 글자, 어두우면 흰 글자
+function inkOn(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255].map((v) => {
+    v /= 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? 'rgba(30,32,30,.78)' : 'rgba(255,255,255,.92)';
+}
+
 function applyTheme() {
   const c = themeColors();
   const root = document.documentElement.style;
   for (const [key] of COLOR_FIELDS) root.setProperty(`--${key}`, c[key]);
+  root.setProperty('--pause-ink', inkOn(c.pause));
+  root.setProperty('--light-ink', inkOn(c.light));
   metaTheme.setAttribute('content', c.bg);
   renderPhrase();
 }
