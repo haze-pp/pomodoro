@@ -170,7 +170,7 @@ body.focus .hint { opacity: 0; }
   opacity: .6;
   text-align: center;
 }
-body.focus .hint.nudge, body.focus .hint.sticky { opacity: 1; }
+body.focus .hint.nudge { opacity: 1; }
 
 /* 알람 깜빡임 */
 .flash {
