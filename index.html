@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#cfdcd4">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Focus Timer</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <button id="settingsBtn" class="icon-btn" aria-label="설정">
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>
+    </svg>
+  </button>
+
+  <main id="app">
+    <section class="clock-area">
+      <svg id="clock" viewBox="0 0 400 420" role="img" aria-label="타이머 다이얼"></svg>
+      <p id="readout" class="readout" aria-live="polite"></p>
+    </section>
+
+    <nav id="presets" class="presets" aria-label="자주 쓰는 시간"></nav>
+  </main>
+
+  <p id="hint" class="hint">다이얼을 돌려 시간을 맞추면 자동으로 시작돼요</p>
+
+  <!-- 자주 쓰는 시간 편집 -->
+  <dialog id="presetDialog" class="sheet">
+    <form method="dialog">
+      <h2 id="presetTitle">자주 쓰는 시간</h2>
+      <label class="minutes-input">
+        <input id="presetMinutes" type="number" inputmode="numeric" min="1" max="60" step="1" required>
+        <span>분</span>
+      </label>
+      <div class="sheet-actions">
+        <button type="button" id="presetDelete" class="danger">삭제</button>
+        <span class="spacer"></span>
+        <button value="cancel" formnovalidate>취소</button>
+        <button value="save" class="primary">저장</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 설정 -->
+  <dialog id="settingsDialog" class="sheet">
+    <form method="dialog">
+      <h2>설정</h2>
+
+      <h3>컬러</h3>
+      <div id="themeList" class="theme-list"></div>
+
+      <details id="customBox" class="custom-box">
+        <summary>색상 직접 바꾸기</summary>
+        <div id="colorFields" class="color-fields"></div>
+        <label class="field">
+          <span>문구</span>
+          <textarea id="phraseInput" rows="2" maxlength="40"></textarea>
+        </label>
+      </details>
+
+      <h3>알람 시간</h3>
+      <div class="segmented" data-setting="alarmSeconds">
+        <button type="button" data-value="3">3초</button>
+        <button type="button" data-value="30">30초</button>
+      </div>
+
+      <h3>알람 음량</h3>
+      <div class="segmented" data-setting="volume">
+        <button type="button" data-value="0">무음</button>
+        <button type="button" data-value="1">작게</button>
+        <button type="button" data-value="2">크게</button>
+      </div>
+
+      <h3>기타</h3>
+      <label class="toggle"><input type="checkbox" id="optDialSound"><span>다이얼 돌릴 때 소리</span></label>
+      <label class="toggle"><input type="checkbox" id="optVibrate"><span>알람 진동</span></label>
+      <label class="toggle"><input type="checkbox" id="optReadout"><span>남은 시간 숫자로 표시</span></label>
+      <label class="toggle"><input type="checkbox" id="optNotify"><span>화면이 꺼졌을 때 알림 보내기</span></label>
+
+      <p class="note">위쪽 긴 버튼은 <b>일시정지</b>, 동그란 버튼은 <b>라이트</b>예요. 라이트를 켜 두면 알람이 울릴 때 화면이 깜빡여요.</p>
+
+      <div class="sheet-actions">
+        <span class="spacer"></span>
+        <button value="close" class="primary">닫기</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="flash" class="flash" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
