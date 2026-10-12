@@ -359,16 +359,14 @@ function render(force) {
   }
 
   // 상단 버튼 눌림 상태
-  startCap.classList.toggle('pressed', startPressed || (timer.started && !timer.running));
+  // 진행 중엔 버튼이 눌려 들어가 있고, 올라와 있으면 대기·일시정지 상태
+  startCap.classList.toggle('pressed', startPressed || timer.running);
   resetCap.classList.toggle('holding', resetHolding);
   // 진행 중엔 START/PAUSE가 왼쪽으로 비켜서고 RESET이 올라옴
   startG.classList.toggle('shifted', timer.started);
   resetG.classList.toggle('shown', timer.started);
-  startLabel.textContent = timer.started ? 'PAUSE' : 'START';
-  // 일시정지 중엔 안내 문구를 계속 보여 줌 (잠깐 뜨는 안내가 있으면 그게 우선)
-  const paused = timer.started && !timer.running;
-  if (!hintEl.classList.contains('nudge')) hintEl.textContent = baseHint();
-  hintEl.classList.toggle('sticky', paused);
+  startLabel.textContent = timer.running ? 'PAUSE' : timer.started ? 'RESUME' : 'START';
+
 
   // 숫자 표시
   // 다이얼을 돌리는 동안엔 손가락에 가려지지 않게 항상 크게 표시
@@ -538,16 +536,20 @@ function releaseWakeLock() {
 function togglePause() {
   audio();
   stopAlarm();
-  if (timer.running) stopRun();
-  else if (timer.remainingMs > 0) start();
+  if (timer.running) {
+    stopRun();
+    hideHint();
+  } else if (timer.remainingMs > 0) {
+    start();
+    showHint(RUNNING_HINT); // 버튼이 들어가 보이지 않으니 멈추는 법을 잠깐 안내
+  }
   else showHint();
   persistTimer();
   render(true);
 }
 
 const DEFAULT_HINT = hintEl.textContent;
-const PAUSED_HINT = '일시정지 중이에요. 이어서 하려면 버튼을 한 번 더 눌러 주세요';
-const baseHint = () => (timer.started && !timer.running ? PAUSED_HINT : DEFAULT_HINT);
+const RUNNING_HINT = '잠시 멈추려면 눌려 있는 버튼을 한 번 더 눌러 주세요';
 let hintTimer = null;
 
 // 안내 문구를 잠깐 바꿔 흔들어 보여 주기
@@ -559,8 +561,14 @@ function showHint(msg = DEFAULT_HINT) {
   hintEl.classList.add('nudge');
   hintTimer = setTimeout(() => {
     hintEl.classList.remove('nudge');
-    hintEl.textContent = baseHint();
+    hintEl.textContent = DEFAULT_HINT;
   }, 2600);
+}
+
+function hideHint() {
+  clearTimeout(hintTimer);
+  hintEl.classList.remove('nudge');
+  hintEl.textContent = DEFAULT_HINT;
 }
 
 function resetTimer() {
