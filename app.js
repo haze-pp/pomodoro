@@ -160,14 +160,28 @@ function polar(r, deg) {
 
 const shade = (v, pct, to = '#000') => `color-mix(in srgb, var(${v}) ${pct}%, ${to})`;
 
-let sectorEl, knobRotEl, phraseEl, startCap, startLabel, hitEl;
+let sectorEl, knobRotEl, phraseEl, startG, startCap, startLabel, resetG, resetCap, resetLabel, hitEl;
 let startPressed = false;
+let resetPressed = false;
 const tickEls = [];
 const BODY_TOP = 40;               // 본체 윗면 y
 
 function buildClock() {
   // 상단 START/PAUSE 버튼 (본체 뒤에 그려서 아랫부분이 가려지게)
-  const startG = el('g', { class: 'top-btn', role: 'button', 'aria-label': '시작 / 일시정지' }, svg);
+  // RESET: 진행 중에만 본체 뒤에서 올라옴
+  resetG = el('g', { class: 'top-btn reset-g', role: 'button', 'aria-label': '처음 시간으로 되돌리기' }, svg);
+  el('rect', { x: 238, y: 0, width: 100, height: BODY_TOP, fill: 'transparent' }, resetG);
+  resetCap = el('rect', {
+    x: 246, rx: 10, width: 84, height: 70,
+    style: 'fill:color-mix(in srgb, var(--body) 50%, var(--face))',
+  }, resetG);
+  resetLabel = el('text', {
+    x: 288, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 12,
+    'font-weight': 700, 'letter-spacing': 1.5, class: 'cap-label', style: 'fill:var(--ticks)',
+  }, resetG);
+  resetLabel.textContent = 'RESET';
+
+  startG = el('g', { class: 'top-btn start-g', role: 'button', 'aria-label': '시작 / 일시정지' }, svg);
   el('rect', { x: 110, y: 0, width: 180, height: BODY_TOP, fill: 'transparent' }, startG);
   startCap = el('rect', { x: 122, rx: 10, width: 156, height: 70, style: 'fill:var(--pause)' }, startG);
   startLabel = el('text', {
@@ -236,17 +250,21 @@ function buildClock() {
   hitEl = el('circle', { cx: CX, cy: CY, r: R_FACE + 10, fill: 'transparent', class: 'dial-hit' }, svg);
 
   // 버튼은 누르는 동안만 눌린 모양
-  const press = (down) => () => { startPressed = down; render(true); };
-  startG.addEventListener('pointerdown', press(true));
-  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) startG.addEventListener(ev, press(false));
-  startG.addEventListener('click', togglePause);
+  const pressable = (g, set, onClick) => {
+    const press = (down) => () => { set(down); render(true); };
+    g.addEventListener('pointerdown', press(true));
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) g.addEventListener(ev, press(false));
+    g.addEventListener('click', onClick);
+  };
+  pressable(startG, (v) => { startPressed = v; }, togglePause);
+  pressable(resetG, (v) => { resetPressed = v; }, resetTimer);
 }
 
 // 상단 버튼: 본체 윗면 위로 보이는 높이를 바꿔 눌림 표현
-function setCap(pressed) {
+function setCap(cap, label, pressed) {
   const y = pressed ? 15 : 2;
-  startCap.setAttribute('y', y);
-  startLabel.setAttribute('y', (y + BODY_TOP) / 2);
+  cap.setAttribute('y', y);
+  label.setAttribute('y', (y + BODY_TOP) / 2);
 }
 
 function sectorPath(min) {
@@ -286,7 +304,7 @@ function fmt(ms) {
 
 function render(force) {
   const rem = remaining();
-  const key = `${Math.floor(rem / 100)}|${timer.running}|${timer.started}|${startPressed}|${settings.light}|${settings.readout}`;
+  const key = `${Math.floor(rem / 100)}|${timer.running}|${timer.started}|${startPressed}|${resetPressed}|${settings.light}|${settings.readout}`;
   if (!force && key === lastKey) return;
   lastKey = key;
 
@@ -309,7 +327,11 @@ function render(force) {
   }
 
   // 상단 버튼 눌림 상태
-  setCap(startPressed);
+  setCap(startCap, startLabel, startPressed);
+  setCap(resetCap, resetLabel, resetPressed);
+  // 진행 중엔 START/PAUSE가 왼쪽으로 비켜서고 RESET이 올라옴
+  startG.classList.toggle('shifted', timer.started);
+  resetG.classList.toggle('shown', timer.started);
   startLabel.textContent = timer.running ? 'PAUSE' : timer.started ? 'RESUME' : 'START';
 
   // 숫자 표시
@@ -515,7 +537,6 @@ function resetTimer() {
   markActivePreset();
   render(true);
 }
-document.getElementById('resetBtn').addEventListener('click', resetTimer);
 
 /* ───────── 다이얼 돌리기 ───────── */
 let drag = null;
