@@ -43,7 +43,6 @@ const DEFAULTS = {
   vibrate: true,
   readout: true,
   notify: false,
-  phrases: {},       // 기본 테마별로 바꾼 가운데 문구 (없으면 테마 기본 문구)
   timer: null,
 };
 
@@ -59,13 +58,11 @@ function loadSettings() {
     }
     delete saved.custom;
     if (!THEMES[saved.theme] && !customTheme(saved.theme, saved)) saved.theme = DEFAULTS.theme;
-    // 예전의 공통 가운데 문구 → 그때 쓰던 테마의 문구로
-    if (typeof raw.phrase === 'string') {
-      const t = customTheme(saved.theme, saved);
-      if (t) t.text = raw.phrase;
-      else saved.phrases = { ...saved.phrases, [saved.theme]: raw.phrase };
-    }
+    // 예전의 공통 가운데 문구: 직접 만든 테마를 쓰던 중이면 그 테마 문구로 (기본 테마 문구는 고정)
+    const oldTheme = customTheme(saved.theme, saved);
+    if (typeof raw.phrase === 'string' && oldTheme) oldTheme.text = raw.phrase;
     delete saved.phrase;
+    delete saved.phrases;
     // 예전 버전 사용자: 비어 있으면 기본 30분 버튼을 한 번만 채워 줌
     if (!raw.presetsSeeded) {
       if (saved.presets.every((m) => !m)) saved.presets = [...DEFAULTS.presets];
@@ -328,9 +325,7 @@ function sectorPath(min) {
 }
 
 function currentPhrase() {
-  const t = customTheme(settings.theme);
-  if (t) return t.text ?? '';
-  return settings.phrases[settings.theme] ?? themeColors().text ?? '';
+  return themeColors().text ?? ''; // 기본 테마는 고정 문구, 직접 만든 테마는 편집 창에서 정한 문구
 }
 
 function renderPhrase() {
@@ -791,9 +786,6 @@ function applyTheme() {
 /* ───────── 설정 화면 ───────── */
 const settingsDialog = document.getElementById('settingsDialog');
 const themeList = document.getElementById('themeList');
-const phraseInput = document.getElementById('phraseInput');
-const phraseReset = document.getElementById('phraseReset');
-const phraseLabel = document.getElementById('phraseLabel');
 
 const editThemeBtn = document.getElementById('editThemeBtn');
 
@@ -1098,29 +1090,6 @@ rgbInputs.forEach((input) => {
   input.addEventListener('change', () => renderPicker());
 });
 
-// 가운데 문구는 지금 고른 테마에 저장됨
-function renderPhraseInput() {
-  phraseInput.value = currentPhrase();
-  phraseLabel.textContent = `가운데 문구 · ${themeColors().name}`;
-  phraseReset.hidden = !!customTheme(settings.theme) || !(settings.theme in settings.phrases);
-}
-
-phraseInput.addEventListener('input', () => {
-  const t = customTheme(settings.theme);
-  if (t) t.text = phraseInput.value;
-  else settings.phrases[settings.theme] = phraseInput.value;
-  phraseReset.hidden = !!t;
-  save();
-  renderPhrase();
-});
-
-phraseReset.addEventListener('click', () => {
-  delete settings.phrases[settings.theme];
-  save();
-  renderPhrase();
-  renderPhraseInput();
-});
-
 const alarmSecondsInput = document.getElementById('alarmSecondsInput');
 const alarmSecondsValue = document.getElementById('alarmSecondsValue');
 
@@ -1165,7 +1134,6 @@ for (const [id, key] of Object.entries(toggles)) {
 
 function renderSettings() {
   renderThemeList();
-  renderPhraseInput();
   renderAlarmSeconds();
   for (const [id, key] of Object.entries(toggles)) document.getElementById(id).checked = !!settings[key];
 }
