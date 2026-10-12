@@ -788,6 +788,7 @@ const settingsDialog = document.getElementById('settingsDialog');
 const themeList = document.getElementById('themeList');
 
 const editThemeBtn = document.getElementById('editThemeBtn');
+const themeActions = document.getElementById('themeActions');
 
 function themeCard(t, selected) {
   const b = document.createElement('button');
@@ -851,8 +852,8 @@ function renderThemeList() {
   themeList.querySelector('.selected')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 
   const current = customTheme(settings.theme);
-  editThemeBtn.hidden = !current;
-  if (current) editThemeBtn.textContent = `'${current.name}' 수정·삭제`;
+  // 직접 만든 테마를 고르면 제목 줄 오른쪽에 수정·삭제 아이콘
+  themeActions.hidden = !current;
 }
 
 editThemeBtn.addEventListener('click', () => {
@@ -1065,13 +1066,22 @@ themeDialog.addEventListener('close', () => {
   selectTheme(`c:${editingId}`);
 });
 
-themeDeleteBtn.addEventListener('click', () => {
-  const t = settings.customThemes.find((x) => x.id === editingId);
-  if (!t || !confirm(`'${t.name}' 테마를 삭제할까요?`)) return;
-  settings.customThemes = settings.customThemes.filter((x) => x.id !== editingId);
-  if (settings.theme === `c:${editingId}`) settings.theme = DEFAULTS.theme;
-  themeDialog.close('delete');
+function deleteTheme(id) {
+  const t = settings.customThemes.find((x) => x.id === id);
+  if (!t || !confirm(`'${t.name}' 테마를 삭제할까요?`)) return false;
+  settings.customThemes = settings.customThemes.filter((x) => x.id !== id);
+  if (settings.theme === `c:${id}`) settings.theme = DEFAULTS.theme;
   selectTheme(settings.theme);
+  return true;
+}
+
+themeDeleteBtn.addEventListener('click', () => {
+  if (deleteTheme(editingId)) themeDialog.close('delete');
+});
+
+document.getElementById('deleteThemeBtn').addEventListener('click', () => {
+  const current = customTheme(settings.theme);
+  if (current) deleteTheme(current.id);
 });
 
 // 네모·막대를 손가락으로 끌어서 고르기

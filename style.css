@@ -282,7 +282,28 @@ body.focus .hint.nudge { opacity: 1; }
 .theme-card.mini .swatch i { width: 10px; height: 10px; }
 .theme-card.add-theme { background: #fff !important; border-style: dashed !important; color: #666 !important; }
 .theme-card .plus { font-size: 20px; line-height: 14px; height: 14px; }
-#editThemeBtn { margin-top: 4px; }
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 18px 0 8px;
+  min-height: 36px;
+}
+.section-head h3 { margin: 0 !important; }
+.theme-actions { display: flex; gap: 4px; }
+.theme-actions[hidden] { display: none; }
+.sheet .icon-action {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #f2f2f2;
+  color: #333;
+  display: grid;
+  place-items: center;
+}
+.sheet .icon-action.danger { color: #c0392b; background: #fbeeee; }
 
 .text-input {
   display: block;
