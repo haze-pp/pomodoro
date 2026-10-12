@@ -4,36 +4,35 @@
 const NS = 'http://www.w3.org/2000/svg';
 const MAX_MIN = 60;
 const CX = 200, CY = 228;          // 다이얼 중심
-const R_FACE = 162;                // 다이얼 판 반지름
-const R_SECTOR = 112;              // 시간 원판 반지름
+const R_FACE = 165;                // 다이얼 판 반지름
+const R_SECTOR = 118;              // 시간 원판 반지름
 const STORE_KEY = 'focus-timer:v1';
 
 const THEMES = {
-  classic: {
-    name: '클래식', bg: '#cfdcd4', body: '#ece6dd', face: '#fbfaf6', sector: '#2f6b4f',
-    knob: '#e6c18f', pause: '#2f7a57', light: '#f2994a', ticks: '#5d625e', phrase: '#2f6b4f',
-    text: 'Great things\ntake time.',
+  sage: {
+    name: '세이지', bg: '#e4e8df', body: '#b7c4ae', face: '#fbfbf7', sector: '#c8643b',
+    knob: '#f4f0e7', pause: '#c8643b', ticks: '#4a5847', phrase: '#c8643b',
+    text: 'Begin gently.',
   },
-  butter: {
-    name: '버터', bg: '#d6dbe7', body: '#f6edcb', face: '#f5f0e0', sector: '#1f4fa0',
-    knob: '#f5c451', pause: '#2f5daa', light: '#f5c451', ticks: '#2f5daa', phrase: '#2f5daa',
-    text: 'One thing\nat a time.',
+  lavender: {
+    name: '라벤더', bg: '#e9e6f1', body: '#c9c1e1', face: '#fdfcff', sector: '#4b3f8f',
+    knob: '#f7f4fc', pause: '#4b3f8f', ticks: '#4a4466', phrase: '#4b3f8f',
+    text: 'Stay with it.',
   },
-  tomato: {
-    name: '토마토', bg: '#cfe0e4', body: '#93bfd6', face: '#f8f7f4', sector: '#d6312b',
-    knob: '#e2dfd9', pause: '#e6e3dd', light: '#d23a33', ticks: '#5a5f63', phrase: '#d6312b',
-    text: 'Flow with your\nown rhythm.',
+  charcoal: {
+    name: '차콜', bg: '#1f2123', body: '#3a3e42', face: '#f1eee8', sector: '#ee9f35',
+    knob: '#2d3034', pause: '#ee9f35', ticks: '#3b3f43', phrase: '#b8742a',
+    text: 'Deep work\nmode.',
   },
 };
-
 const COLOR_FIELDS = [
   ['bg', '배경'], ['body', '본체'], ['face', '다이얼 판'], ['sector', '시간 원판'],
-  ['knob', '손잡이'], ['pause', '일시정지 버튼'], ['light', '라이트 버튼'],
+  ['knob', '손잡이'], ['pause', 'START 버튼'],
   ['ticks', '눈금·숫자'], ['phrase', '문구 색'],
 ];
 
 const DEFAULTS = {
-  theme: 'classic',
+  theme: 'sage',
   custom: null,
   presets: [null, null, null, null],
   alarmSeconds: 30,
@@ -49,8 +48,9 @@ const DEFAULTS = {
 /* ───────── 저장 ───────── */
 function loadSettings() {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORE_KEY));
-    return { ...DEFAULTS, ...saved };
+    const saved = { ...DEFAULTS, ...JSON.parse(localStorage.getItem(STORE_KEY)) };
+    if (saved.theme !== 'custom' && !THEMES[saved.theme]) saved.theme = DEFAULTS.theme;
+    return saved;
   } catch {
     return { ...DEFAULTS };
   }
@@ -62,7 +62,7 @@ function save() {
 
 function themeColors() {
   if (settings.theme === 'custom' && settings.custom) return settings.custom;
-  return THEMES[settings.theme] || THEMES.classic;
+  return THEMES[settings.theme] || THEMES[DEFAULTS.theme];
 }
 
 /* ───────── 타이머 상태 ───────── */
@@ -146,107 +146,106 @@ function polar(r, deg) {
 
 const shade = (v, pct, to = '#000') => `color-mix(in srgb, var(${v}) ${pct}%, ${to})`;
 
-let sectorEl, knobRotEl, phraseEl, pauseCap, pauseLabel, lightCap, lightLabel, hitEl;
-let pausePressed = false;
+let sectorEl, knobRotEl, phraseEl, startCap, startLabel, hitEl;
+let startPressed = false;
 const tickEls = [];
+const BODY_TOP = 40;               // 본체 윗면 y
+
+// 슈퍼타원(스퀘클) 외곽선
+function squirclePath(cx, cy, rx, ry, n = 4.6, steps = 120) {
+  let d = '';
+  for (let i = 0; i < steps; i++) {
+    const t = (i / steps) * 2 * Math.PI;
+    const c = Math.cos(t), s = Math.sin(t);
+    const x = cx + rx * Math.sign(c) * Math.abs(c) ** (2 / n);
+    const y = cy + ry * Math.sign(s) * Math.abs(s) ** (2 / n);
+    d += `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`;
+  }
+  return `${d}Z`;
+}
 
 function buildClock() {
-  // 상단 버튼 (본체 뒤에 그려서 아랫부분이 가려지게)
-  const pauseG = el('g', { class: 'top-btn', role: 'button', 'aria-label': '시작 / 일시정지' }, svg);
-  el('rect', { x: 50, y: 0, width: 180, height: 40, fill: 'transparent' }, pauseG);
-  pauseCap = el('rect', { x: 60, rx: 6, width: 160, height: 60, style: 'fill:var(--pause)' }, pauseG);
-  pauseLabel = el('text', {
-    x: 140, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 15,
-    'font-weight': 700, 'letter-spacing': 2, class: 'cap-label', style: 'fill:var(--pause-ink)',
-  }, pauseG);
-
-  const lightG = el('g', { class: 'top-btn', role: 'button', 'aria-label': '라이트' }, svg);
-  el('rect', { x: 262, y: 0, width: 112, height: 40, fill: 'transparent' }, lightG);
-  lightCap = el('rect', { x: 270, rx: 16, width: 96, height: 60, style: 'fill:var(--light)' }, lightG);
-  lightLabel = el('text', {
-    x: 318, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 13,
-    'font-weight': 700, 'letter-spacing': 1.5, class: 'cap-label', style: 'fill:var(--light-ink)',
-  }, lightG);
-  lightLabel.textContent = 'LIGHT';
+  // 상단 START/PAUSE 버튼 (본체 뒤에 그려서 아랫부분이 가려지게)
+  const startG = el('g', { class: 'top-btn', role: 'button', 'aria-label': '시작 / 일시정지' }, svg);
+  el('rect', { x: 110, y: 0, width: 180, height: BODY_TOP, fill: 'transparent' }, startG);
+  startCap = el('rect', { x: 122, rx: 26, width: 156, height: 70, style: 'fill:var(--pause)' }, startG);
+  startLabel = el('text', {
+    x: CX, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 15,
+    'font-weight': 700, 'letter-spacing': 2.5, class: 'cap-label', style: 'fill:var(--pause-ink)',
+  }, startG);
 
   // 본체
-  el('rect', { x: 12, y: 42, width: 376, height: 374, rx: 34, style: `fill:${shade('--body', 82)}` }, svg);
-  el('rect', { x: 12, y: 36, width: 376, height: 374, rx: 34, style: 'fill:var(--body)' }, svg);
+  const bodyPath = squirclePath(CX, 226, 188, 186);
+  el('path', { d: bodyPath, transform: 'translate(0 6)', style: `fill:${shade('--body', 80)}` }, svg);
+  el('path', { d: bodyPath, style: 'fill:var(--body)' }, svg);
 
-  // 테두리(투명 커버 느낌)
-  el('circle', { cx: CX, cy: CY, r: 173, style: `fill:${shade('--body', 86)}` }, svg);
-  el('circle', { cx: CX, cy: CY, r: 169, style: `fill:${shade('--body', 70, '#fff')}` }, svg);
-  el('circle', { cx: CX, cy: CY, r: R_FACE, style: 'fill:var(--face)' }, svg);
+  // 베젤과 다이얼 판
+  el('circle', { cx: CX, cy: CY, r: 173, style: `fill:${shade('--body', 90)}` }, svg);
+  el('circle', { cx: CX, cy: CY, r: 165, style: 'fill:var(--face)' }, svg);
+  el('circle', {
+    cx: CX, cy: CY, r: 164, fill: 'none', 'stroke-width': 2,
+    style: 'stroke:var(--ticks); opacity:.12',
+  }, svg);
 
-  // 눈금
+  // 눈금: 1분은 점, 5분은 굵은 막대
   for (let i = 0; i < 60; i++) {
     const major = i % 5 === 0;
-    const [x1, y1] = polar(156, i * 6);
-    const [x2, y2] = polar(major ? 143 : 149, i * 6);
-    tickEls.push(el('line', {
-      x1, y1, x2, y2,
-      'stroke-width': major ? 1.8 : 1,
-      'stroke-linecap': 'round',
-      style: 'stroke:var(--ticks)',
-    }, svg));
+    const [x1, y1] = polar(major ? 146 : 154, i * 6);
+    const [x2, y2] = polar(156, i * 6);
+    const w = major ? 3.2 : 2.6;
+    const t = el('line', {
+      x1, y1, x2: major ? x2 : x1, y2: major ? y2 : y1,
+      'stroke-width': w, 'stroke-linecap': 'round', style: 'stroke:var(--ticks)',
+    }, svg);
+    t.dataset.w = w;
+    tickEls.push(t);
   }
 
-  // 숫자
-  for (let m = 0; m < 60; m += 5) {
-    const [x, y] = polar(130, m * 6);
+  // 숫자는 10분 간격
+  for (let m = 0; m < 60; m += 10) {
+    const [x, y] = polar(128, m * 6);
     const t = el('text', {
       x, y, 'text-anchor': 'middle', 'dominant-baseline': 'central',
-      'font-size': 12, 'font-weight': 500, style: 'fill:var(--ticks)',
+      'font-size': 17, 'font-weight': 700, style: 'fill:var(--ticks)',
     }, svg);
     t.textContent = m;
   }
 
-  // 0 위치 기준선
-  el('line', {
-    x1: CX, y1: CY - R_SECTOR, x2: CX, y2: CY - 156,
-    'stroke-width': 1, style: 'stroke:var(--ticks); opacity:.55',
-  }, svg);
-
-  // 문구
-  phraseEl = el('text', {
-    x: CX, y: CY + 64, 'text-anchor': 'middle', 'font-size': 15, 'font-weight': 500,
-    style: 'fill:var(--phrase)',
-  }, svg);
-
   // 시간 원판
   sectorEl = el('path', { style: 'fill:var(--sector)' }, svg);
 
-  // 손잡이
-  el('circle', { cx: CX + 2, cy: CY + 5, r: 30, fill: 'rgba(0,0,0,.16)' }, svg);
-  el('circle', { cx: CX, cy: CY, r: 29, style: 'fill:var(--knob)' }, svg);
+  // 문구 (원판 위에 테두리를 둘러 가려지지 않게)
+  phraseEl = el('text', {
+    x: CX, y: CY + 72, 'text-anchor': 'middle', 'font-size': 15, 'font-weight': 600,
+    'font-style': 'italic', 'paint-order': 'stroke', 'stroke-width': 5, 'stroke-linejoin': 'round',
+    style: 'fill:var(--phrase); stroke:var(--face)',
+  }, svg);
+
+  // 손잡이: 둥근 받침 + 가로지르는 손잡이 막대
+  el('circle', { cx: CX, cy: CY + 4, r: 27, fill: 'rgba(0,0,0,.15)' }, svg);
+  el('circle', { cx: CX, cy: CY, r: 26, style: `fill:${shade('--knob', 88)}` }, svg);
   knobRotEl = el('g', {}, svg);
-  for (let i = 0; i < 40; i++) {
-    const [x1, y1] = polar(24.5, i * 9);
-    const [x2, y2] = polar(29, i * 9);
-    el('line', { x1, y1, x2, y2, 'stroke-width': 1.2, style: `stroke:${shade('--knob', 72)}` }, knobRotEl);
-  }
-  el('circle', { cx: CX, cy: CY, r: 23, style: `fill:${shade('--knob', 82, '#fff')}` }, knobRotEl);
-  el('line', {
-    x1: CX, y1: CY - 6, x2: CX, y2: CY - 18, 'stroke-width': 2.4, 'stroke-linecap': 'round',
-    style: `stroke:${shade('--knob', 55)}`,
+  el('rect', {
+    x: CX - 8, y: CY - 34, width: 16, height: 68, rx: 8,
+    'stroke-width': 1.2, style: `fill:var(--knob); stroke:${shade('--knob', 75)}`,
   }, knobRotEl);
+  el('circle', { cx: CX, cy: CY - 25, r: 3.2, style: 'fill:var(--sector)' }, knobRotEl);
 
   // 터치 영역
   hitEl = el('circle', { cx: CX, cy: CY, r: R_FACE + 10, fill: 'transparent', class: 'dial-hit' }, svg);
 
-  // 시작/일시정지 버튼은 누르는 동안만 눌린 모양
-  const press = (down) => () => { pausePressed = down; render(true); };
-  pauseG.addEventListener('pointerdown', press(true));
-  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) pauseG.addEventListener(ev, press(false));
-  pauseG.addEventListener('click', togglePause);
-  lightG.addEventListener('click', toggleLight);
+  // 버튼은 누르는 동안만 눌린 모양
+  const press = (down) => () => { startPressed = down; render(true); };
+  startG.addEventListener('pointerdown', press(true));
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) startG.addEventListener(ev, press(false));
+  startG.addEventListener('click', togglePause);
 }
 
-// 상단 버튼: 본체 윗면(y=36) 위로 보이는 높이를 바꿔 눌림 표현
-function setCap(cap, label, pressed, upY, downY) {
-  const y = pressed ? downY : upY;
-  cap.setAttribute('y', y);
-  label.setAttribute('y', (y + 36) / 2 + 1);
+// 상단 버튼: 본체 윗면 위로 보이는 높이를 바꿔 눌림 표현
+function setCap(pressed) {
+  const y = pressed ? 15 : 2;
+  startCap.setAttribute('y', y);
+  startLabel.setAttribute('y', (y + BODY_TOP) / 2);
 }
 
 function sectorPath(min) {
@@ -282,7 +281,7 @@ function fmt(ms) {
 
 function render(force) {
   const rem = remaining();
-  const key = `${Math.floor(rem / 100)}|${timer.running}|${timer.started}|${pausePressed}|${settings.light}|${settings.readout}`;
+  const key = `${Math.floor(rem / 100)}|${timer.running}|${timer.started}|${startPressed}|${settings.light}|${settings.readout}`;
   if (!force && key === lastKey) return;
   lastKey = key;
 
@@ -295,19 +294,18 @@ function render(force) {
   if (idx !== litTick) {
     if (litTick >= 0) {
       tickEls[litTick].style.stroke = 'var(--ticks)';
-      tickEls[litTick].setAttribute('stroke-width', litTick % 5 === 0 ? 1.8 : 1);
+      tickEls[litTick].setAttribute('stroke-width', tickEls[litTick].dataset.w);
     }
     if (idx >= 0) {
       tickEls[idx].style.stroke = 'var(--sector)';
-      tickEls[idx].setAttribute('stroke-width', 3.2);
+      tickEls[idx].setAttribute('stroke-width', Number(tickEls[idx].dataset.w) + 2.4);
     }
     litTick = idx;
   }
 
   // 상단 버튼 눌림 상태
-  setCap(pauseCap, pauseLabel, pausePressed, 0, 13);
-  pauseLabel.textContent = timer.running ? 'PAUSE' : 'START';
-  setCap(lightCap, lightLabel, settings.light, 4, 15);
+  setCap(startPressed);
+  startLabel.textContent = timer.running ? 'PAUSE' : 'START';
 
   // 숫자 표시
   // 다이얼을 돌리는 동안엔 손가락에 가려지지 않게 항상 크게 표시
@@ -491,14 +489,6 @@ function nudgeHint() {
   hintEl.classList.add('nudge');
 }
 
-function toggleLight() {
-  audio();
-  settings.light = !settings.light;
-  playClick();
-  save();
-  render(true);
-}
-
 /* ───────── 다이얼 돌리기 ───────── */
 let drag = null;
 
@@ -664,7 +654,8 @@ function applyTheme() {
   const root = document.documentElement.style;
   for (const [key] of COLOR_FIELDS) root.setProperty(`--${key}`, c[key]);
   root.setProperty('--pause-ink', inkOn(c.pause));
-  root.setProperty('--light-ink', inkOn(c.light));
+  root.setProperty('--ink', inkOn(c.bg));
+  root.setProperty('--body-ink', inkOn(c.body));
   metaTheme.setAttribute('content', c.bg);
   renderPhrase();
 }
@@ -759,6 +750,7 @@ const toggles = {
   optDialSound: 'dialSound',
   optVibrate: 'vibrate',
   optReadout: 'readout',
+  optLight: 'light',
   optNotify: 'notify',
 };
 for (const [id, key] of Object.entries(toggles)) {

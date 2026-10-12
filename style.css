@@ -1,14 +1,14 @@
 :root {
-  --bg: #cfdcd4;
-  --body: #ece6dd;
-  --face: #fbfaf6;
-  --sector: #2f6b4f;
-  --knob: #e8c595;
-  --pause: #2f7a57;
-  --light: #f2994a;
-  --ticks: #5d625e;
-  --phrase: #2f6b4f;
-  --ink: #2a2d2b;
+  --bg: #e4e8df;
+  --body: #b7c4ae;
+  --face: #fbfbf7;
+  --sector: #c8643b;
+  --knob: #f4f0e7;
+  --pause: #c8643b;
+  --ticks: #4a5847;
+  --phrase: #c8643b;
+  --ink: rgba(30, 32, 30, .78);
+  --body-ink: rgba(30, 32, 30, .78);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
   -webkit-tap-highlight-color: transparent;
 }
@@ -44,7 +44,7 @@ body {
   border: 0;
   border-radius: 50%;
   background: color-mix(in srgb, var(--body) 70%, transparent);
-  color: var(--ink);
+  color: var(--body-ink);
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -124,7 +124,7 @@ body.focus .hint { opacity: 0; }
   border-radius: 16px;
   border: 2px solid color-mix(in srgb, var(--body) 60%, var(--ticks));
   background: var(--body);
-  color: var(--ink);
+  color: var(--body-ink);
   font: inherit;
   font-size: 15px;
   font-weight: 600;
@@ -137,6 +137,7 @@ body.focus .hint { opacity: 0; }
   background: transparent;
   border-style: dashed;
   box-shadow: none;
+  color: var(--ink);
   font-size: 26px;
   font-weight: 300;
   opacity: .7;
