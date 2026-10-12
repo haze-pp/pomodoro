@@ -93,6 +93,32 @@ body {
   transition: transform .15s, opacity .15s;
 }
 .readout.hidden { visibility: hidden; }
+
+/* 진행 중에만 보이는 RESET */
+.reset-btn {
+  margin-top: 6px;
+  padding: 8px 22px;
+  border: 1.5px solid color-mix(in srgb, var(--ink) 35%, transparent);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  cursor: pointer;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity .3s, visibility .3s;
+}
+.reset-btn:active { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+body.focus .reset-btn { visibility: visible; opacity: 1; }
+
+.help-btn { right: 64px !important; }
+
+.help { font-size: 14px; line-height: 1.6; }
+.help h3:first-child { margin-top: 4px; }
+.help ol, .help ul { margin: 0; padding-left: 20px; }
+.help li { margin: 4px 0; }
 /* 다이얼을 돌리는 중: 손가락에 가려지지 않게 크게 */
 .readout.setting { transform: scale(1.35); opacity: 1; font-weight: 600; }
 

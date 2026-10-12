@@ -34,7 +34,8 @@ const COLOR_FIELDS = [
 const DEFAULTS = {
   theme: 'sage',
   custom: null,
-  presets: [null, null, null, null],
+  presets: [30, null, null, null],
+  presetsSeeded: true, // 기본 30분 버튼을 한 번 넣었는지
   alarmSeconds: 30,
   alarmSound: true,
   light: false,
@@ -49,8 +50,14 @@ const DEFAULTS = {
 /* ───────── 저장 ───────── */
 function loadSettings() {
   try {
-    const saved = { ...DEFAULTS, ...JSON.parse(localStorage.getItem(STORE_KEY)) };
+    const raw = JSON.parse(localStorage.getItem(STORE_KEY)) || {};
+    const saved = { ...DEFAULTS, ...raw };
     if (saved.theme !== 'custom' && !THEMES[saved.theme]) saved.theme = DEFAULTS.theme;
+    // 예전 버전 사용자: 비어 있으면 기본 30분 버튼을 한 번만 채워 줌
+    if (!raw.presetsSeeded) {
+      if (saved.presets.every((m) => !m)) saved.presets = [...DEFAULTS.presets];
+      saved.presetsSeeded = true;
+    }
     // 이전 버전의 3단계 음량 설정 → 켬/끔
     if ('volume' in saved) {
       saved.alarmSound = saved.volume > 0;
@@ -303,14 +310,14 @@ function render(force) {
 
   // 상단 버튼 눌림 상태
   setCap(startPressed);
-  startLabel.textContent = timer.running ? 'PAUSE' : 'START';
+  startLabel.textContent = timer.running ? 'PAUSE' : timer.started ? 'RESUME' : 'START';
 
   // 숫자 표시
   // 다이얼을 돌리는 동안엔 손가락에 가려지지 않게 항상 크게 표시
   readoutEl.classList.toggle('hidden', !settings.readout && !dragging);
   readoutEl.classList.toggle('setting', dragging);
   if (rem > 0) {
-    readoutEl.textContent = (timer.started && !timer.running ? '일시정지 · ' : '') + fmt(rem);
+    readoutEl.textContent = (timer.started && !timer.running ? 'PAUSED · ' : '') + fmt(rem);
   } else {
     readoutEl.textContent = alarmActive ? '끝! 화면을 눌러 알람 끄기' : '0:00';
   }
@@ -475,17 +482,40 @@ function togglePause() {
   stopAlarm();
   if (timer.running) stopRun();
   else if (timer.remainingMs > 0) start();
-  else nudgeHint();
+  else showHint();
   playClick();
   persistTimer();
   render(true);
 }
 
-function nudgeHint() {
+const DEFAULT_HINT = hintEl.textContent;
+let hintTimer = null;
+
+// 안내 문구를 잠깐 바꿔 흔들어 보여 주기
+function showHint(msg = DEFAULT_HINT) {
+  clearTimeout(hintTimer);
+  hintEl.textContent = msg;
   hintEl.classList.remove('nudge');
   void hintEl.offsetWidth; // 애니메이션 다시 시작
   hintEl.classList.add('nudge');
+  hintTimer = setTimeout(() => {
+    hintEl.classList.remove('nudge');
+    hintEl.textContent = DEFAULT_HINT;
+  }, 2600);
 }
+
+function resetTimer() {
+  audio();
+  stopAlarm();
+  stopRun();
+  timer.started = false;
+  timer.remainingMs = timer.sessionMinutes * 60000; // 처음 맞춘 시간으로
+  playClick();
+  persistTimer();
+  markActivePreset();
+  render(true);
+}
+document.getElementById('resetBtn').addEventListener('click', resetTimer);
 
 /* ───────── 다이얼 돌리기 ───────── */
 let drag = null;
@@ -499,6 +529,11 @@ function pointerDeg(e) {
 function setupDial() {
   hitEl.addEventListener('pointerdown', (e) => {
     audio(); // 사용자 제스처로 오디오 잠금 해제
+    // 진행 중(일시정지 포함)에는 실수로 바뀌지 않게 다이얼 잠금
+    if (timer.started) {
+      showHint('진행 중에는 다이얼이 잠겨 있어요. 다시 맞추려면 RESET을 눌러 주세요');
+      return;
+    }
     hitEl.setPointerCapture(e.pointerId);
     drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, last: Math.round(remaining() / 60000) };
   });
@@ -510,8 +545,6 @@ function setupDial() {
       drag.moved = true;
       dragging = true;
       stopAlarm();
-      stopRun();
-      timer.started = false; // 다시 맞추는 중 → START를 눌러야 시작
     }
     let m = Math.round(pointerDeg(e) / 6);
     // 0 ↔ 60 경계를 넘어가지 않게 (실제 다이얼처럼 끝에서 멈춤)
@@ -800,6 +833,10 @@ document.getElementById('settingsBtn').addEventListener('click', () => {
   document.getElementById('customBox').open = settings.theme === 'custom';
   settingsDialog.showModal();
 });
+
+/* ───────── 사용 방법 ───────── */
+const helpDialog = document.getElementById('helpDialog');
+document.getElementById('helpBtn').addEventListener('click', () => helpDialog.showModal());
 
 /* ───────── 앱 상태 변화 ───────── */
 document.addEventListener('visibilitychange', () => {
