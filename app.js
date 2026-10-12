@@ -33,7 +33,7 @@ const COLOR_FIELDS = [
 
 const DEFAULTS = {
   theme: 'sage',
-  custom: null,
+  customThemes: [],  // 직접 만든 테마 [{ id, name, ...색 }]
   presets: [30, null, null, null],
   presetsSeeded: true, // 기본 30분 버튼을 한 번 넣었는지
   alarmSeconds: 30,
@@ -43,7 +43,6 @@ const DEFAULTS = {
   vibrate: true,
   readout: true,
   notify: false,
-  phrase: null,      // 가운데 문구 (null이면 테마 기본 문구)
   timer: null,
 };
 
@@ -51,8 +50,19 @@ const DEFAULTS = {
 function loadSettings() {
   try {
     const raw = JSON.parse(localStorage.getItem(STORE_KEY)) || {};
-    const saved = { ...DEFAULTS, ...raw };
-    if (saved.theme !== 'custom' && !THEMES[saved.theme]) saved.theme = DEFAULTS.theme;
+    const saved = { ...structuredClone(DEFAULTS), ...raw };
+    // 예전의 '나만의' 테마 하나 → 직접 만든 테마 목록으로
+    if (raw.custom && !raw.customThemes) {
+      saved.customThemes = [{ ...raw.custom, id: 'c1', name: '나만의' }];
+      if (saved.theme === 'custom') saved.theme = 'c:c1';
+    }
+    delete saved.custom;
+    if (!THEMES[saved.theme] && !customTheme(saved.theme, saved)) saved.theme = DEFAULTS.theme;
+    // 예전의 공통 가운데 문구: 직접 만든 테마를 쓰던 중이면 그 테마 문구로 (기본 테마 문구는 고정)
+    const oldTheme = customTheme(saved.theme, saved);
+    if (typeof raw.phrase === 'string' && oldTheme) oldTheme.text = raw.phrase;
+    delete saved.phrase;
+    delete saved.phrases;
     // 예전 버전 사용자: 비어 있으면 기본 30분 버튼을 한 번만 채워 줌
     if (!raw.presetsSeeded) {
       if (saved.presets.every((m) => !m)) saved.presets = [...DEFAULTS.presets];
@@ -66,7 +76,7 @@ function loadSettings() {
     saved.alarmSeconds = Math.min(60, Math.max(1, Math.round(Number(saved.alarmSeconds)) || 30));
     return saved;
   } catch {
-    return { ...DEFAULTS };
+    return structuredClone(DEFAULTS);
   }
 }
 const settings = loadSettings();
@@ -74,9 +84,13 @@ function save() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(settings)); } catch { /* 저장 불가 환경 */ }
 }
 
+// 직접 만든 테마는 'c:<id>'로 선택됨
+function customTheme(themeId, s = settings) {
+  return themeId?.startsWith('c:') ? s.customThemes.find((t) => `c:${t.id}` === themeId) : undefined;
+}
+
 function themeColors() {
-  if (settings.theme === 'custom' && settings.custom) return settings.custom;
-  return THEMES[settings.theme] || THEMES[DEFAULTS.theme];
+  return THEMES[settings.theme] || customTheme(settings.theme) || THEMES[DEFAULTS.theme];
 }
 
 /* ───────── 타이머 상태 ───────── */
@@ -311,7 +325,7 @@ function sectorPath(min) {
 }
 
 function currentPhrase() {
-  return settings.phrase ?? themeColors().text ?? '';
+  return themeColors().text ?? ''; // 기본 테마는 고정 문구, 직접 만든 테마는 편집 창에서 정한 문구
 }
 
 function renderPhrase() {
@@ -772,87 +786,342 @@ function applyTheme() {
 /* ───────── 설정 화면 ───────── */
 const settingsDialog = document.getElementById('settingsDialog');
 const themeList = document.getElementById('themeList');
-const colorFields = document.getElementById('colorFields');
-const phraseInput = document.getElementById('phraseInput');
-const phraseReset = document.getElementById('phraseReset');
 
-function ensureCustom() {
-  if (settings.theme !== 'custom' || !settings.custom) {
-    settings.custom = { ...themeColors(), name: '나만의' };
-    settings.theme = 'custom';
+const editThemeBtn = document.getElementById('editThemeBtn');
+const themeActions = document.getElementById('themeActions');
+
+function themeCard(t, selected) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'theme-card' + (selected ? ' selected' : '');
+  const sw = document.createElement('span');
+  sw.className = 'swatch';
+  for (const k of ['body', 'sector', 'knob']) {
+    const i = document.createElement('i');
+    i.style.background = t[k];
+    sw.appendChild(i);
   }
-  return settings.custom;
+  const label = document.createElement('span');
+  label.className = 'theme-name';
+  label.textContent = t.name;
+  b.append(sw, label);
+  return b;
+}
+
+function selectTheme(themeId) {
+  settings.theme = themeId;
+  save();
+  applyTheme();
+  renderSettings();
 }
 
 function renderThemeList() {
   themeList.textContent = '';
-  const entries = Object.entries(THEMES).map(([id, t]) => [id, t]);
-  entries.push(['custom', settings.custom || { ...themeColors(), name: '나만의' }]);
-  for (const [id, t] of entries) {
+  for (const [id, t] of Object.entries(THEMES)) {
+    const b = themeCard(t, settings.theme === id);
+    b.addEventListener('click', () => selectTheme(id));
+    themeList.appendChild(b);
+  }
+  for (const t of settings.customThemes) {
+    const themeId = `c:${t.id}`;
+    const b = themeCard(t, settings.theme === themeId);
+    // 짧게 누르면 선택, 길게 누르면 수정
+    let pressTimer = null;
+    let longPressed = false;
+    b.addEventListener('pointerdown', () => {
+      longPressed = false;
+      pressTimer = setTimeout(() => {
+        longPressed = true;
+        if (navigator.vibrate) navigator.vibrate(15);
+        openThemeEditor(t.id);
+      }, 550);
+    });
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, () => clearTimeout(pressTimer));
+    b.addEventListener('contextmenu', (e) => e.preventDefault());
+    b.addEventListener('click', () => { if (!longPressed) selectTheme(themeId); });
+    themeList.appendChild(b);
+  }
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'theme-card add-theme';
+  add.innerHTML = '<span class="plus">+</span><span class="theme-name">새 테마</span>';
+  add.addEventListener('click', () => openThemeEditor(null));
+  themeList.appendChild(add);
+
+  // 고른 테마가 안 보이는 곳에 있으면 보이게 밀어 줌
+  themeList.querySelector('.selected')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+
+  const current = customTheme(settings.theme);
+  // 직접 만든 테마를 고르면 제목 줄 오른쪽에 수정·삭제 아이콘
+  themeActions.hidden = !current;
+}
+
+editThemeBtn.addEventListener('click', () => {
+  const current = customTheme(settings.theme);
+  if (current) openThemeEditor(current.id);
+});
+
+/* ───────── 색상 편집기: 큰 네모(채도·밝기) + 색상 막대 ───────── */
+const partChips = document.getElementById('partChips');
+const pickerEl = document.getElementById('picker');
+const svBox = document.getElementById('svBox');
+const svThumb = document.getElementById('svThumb');
+const hueBar = document.getElementById('hueBar');
+const hueThumb = document.getElementById('hueThumb');
+const pickPreview = document.getElementById('pickPreview');
+const hexInput = document.getElementById('hexInput');
+const rgbInputs = ['rIn', 'gIn', 'bIn'].map((id) => document.getElementById(id));
+
+const selectedParts = new Set(['sector']);
+let draft = null;        // 편집 중인 테마 (저장 전까지는 앱에 반영 안 됨)
+let editingId = null;    // 수정 중인 테마 id, 새 테마면 null
+const hsv = { h: 0, s: 0, v: 0 };
+
+const toHex = (rgb) => `#${rgb.map((n) => Math.round(n).toString(16).padStart(2, '0')).join('')}`;
+const fromHex = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
+function hsvToRgb({ h, s, v }) {
+  const f = (n) => {
+    const k = (n + h / 60) % 6;
+    return v * (1 - s * Math.max(0, Math.min(k, 4 - k, 1))) * 255;
+  };
+  return [f(5), f(3), f(1)];
+}
+
+function rgbToHsv([r, g, b]) {
+  [r, g, b] = [r / 255, g / 255, b / 255];
+  const max = Math.max(r, g, b), d = max - Math.min(r, g, b);
+  let h = 0;
+  if (d) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h = (h * 60 + 360) % 360;
+  }
+  return { h, s: max ? d / max : 0, v: max };
+}
+
+// '#C8643B', 'c8643b', '#c63', 'rgb(200, 100, 59)', '200,100,59', '200 100 59' → '#c8643b'
+function parseColor(text) {
+  const s = text.trim().toLowerCase();
+  let m = s.match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/);
+  if (m) {
+    const h = m[1].length === 3 ? [...m[1]].map((ch) => ch + ch).join('') : m[1];
+    return `#${h}`;
+  }
+  m = s.match(/^(?:rgb\s*\()?\s*(\d{1,3})\s*[,\s]\s*(\d{1,3})\s*[,\s]\s*(\d{1,3})\s*\)?$/);
+  if (m) {
+    const v = m.slice(1).map(Number);
+    if (v.every((n) => n <= 255)) return toHex(v);
+  }
+  return null;
+}
+
+// 선택기 화면(손잡이 위치, 값 입력칸)을 hsv에 맞춤. skip: 지금 입력 중인 칸은 건드리지 않음
+function renderPicker(skip) {
+  const hex = toHex(hsvToRgb(hsv));
+  svBox.style.setProperty('--hue', `hsl(${hsv.h} 100% 50%)`);
+  svThumb.style.left = `${hsv.s * 100}%`;
+  svThumb.style.top = `${(1 - hsv.v) * 100}%`;
+  svThumb.style.background = hex;
+  hueThumb.style.left = `${(hsv.h / 360) * 100}%`;
+  pickPreview.style.background = hex;
+  if (skip !== hexInput) {
+    hexInput.value = hex.toUpperCase();
+    hexInput.classList.remove('invalid');
+  }
+  if (skip !== 'rgb') fromHex(hex).forEach((n, i) => { rgbInputs[i].value = n; });
+  pickerEl.classList.toggle('inactive', selectedParts.size === 0);
+}
+
+// 선택한 부분 모두에 현재 색 적용 (한 프레임에 한 번만)
+let applyQueued = false;
+function applyPicked() {
+  if (applyQueued || selectedParts.size === 0) return;
+  applyQueued = true;
+  requestAnimationFrame(() => {
+    applyQueued = false;
+    const hex = toHex(hsvToRgb(hsv));
+    for (const key of selectedParts) draft[key] = hex;
+    renderChips();
+    renderPreview();
+  });
+}
+
+function setFromHex(hex, skip) {
+  Object.assign(hsv, rgbToHsv(fromHex(hex)));
+  renderPicker(skip);
+  applyPicked();
+}
+
+function renderChips() {
+  const c = draft;
+  partChips.textContent = '';
+  for (const [key, label] of COLOR_FIELDS) {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'theme-card' + (settings.theme === id ? ' selected' : '');
-    const sw = document.createElement('span');
-    sw.className = 'swatch';
-    for (const k of ['body', 'sector', 'knob']) {
-      const i = document.createElement('i');
-      i.style.background = t[k];
-      sw.appendChild(i);
-    }
-    const label = document.createElement('span');
-    label.textContent = id === 'custom' ? '나만의' : t.name;
-    b.append(sw, label);
+    b.className = 'part-chip' + (selectedParts.has(key) ? ' selected' : '');
+    b.setAttribute('aria-pressed', selectedParts.has(key));
+    const dot = document.createElement('span');
+    dot.className = 'swatch-dot';
+    dot.style.background = c[key];
+    const name = document.createElement('span');
+    name.textContent = label;
+    b.append(dot, name);
     b.addEventListener('click', () => {
-      if (id === 'custom') ensureCustom();
-      else settings.theme = id;
-      save();
-      applyTheme();
-      renderSettings();
-      document.getElementById('customBox').open = id === 'custom';
+      if (selectedParts.has(key)) {
+        selectedParts.delete(key);
+      } else {
+        selectedParts.add(key);
+        if (selectedParts.size === 1) {
+          // 하나만 골랐으면 그 부분의 지금 색에서 시작
+          Object.assign(hsv, rgbToHsv(fromHex(draft[key])));
+        } else {
+          // 여러 개를 고르면 지금 선택기 색으로 맞춤
+          applyPicked();
+        }
+      }
+      renderChips();
+      renderPicker();
     });
-    themeList.appendChild(b);
+    partChips.appendChild(b);
   }
 }
 
 function renderColorFields() {
-  colorFields.textContent = '';
-  const c = themeColors();
-  for (const [key, label] of COLOR_FIELDS) {
-    const wrap = document.createElement('label');
-    wrap.className = 'color-field';
-    const input = document.createElement('input');
-    input.type = 'color';
-    input.value = c[key];
-    input.addEventListener('input', () => {
-      ensureCustom()[key] = input.value;
-      save();
-      applyTheme();
-      renderThemeList();
+  const first = [...selectedParts][0];
+  if (first) Object.assign(hsv, rgbToHsv(fromHex(draft[first])));
+  renderChips();
+  renderPicker();
+}
+
+/* ───────── 테마 만들기·수정 팝업 ───────── */
+const themeDialog = document.getElementById('themeDialog');
+const themeNameInput = document.getElementById('themeName');
+const themePreview = document.getElementById('themePreview');
+const themeDeleteBtn = document.getElementById('themeDelete');
+const themePhraseInput = document.getElementById('themePhrase');
+const copyFrom = document.getElementById('copyFrom');
+
+// 다른 테마의 색과 문구를 편집 중인 테마로 복사 (이름은 그대로)
+function renderCopyFrom() {
+  copyFrom.textContent = '';
+  const sources = [...Object.values(THEMES), ...settings.customThemes.filter((t) => t.id !== editingId)];
+  for (const t of sources) {
+    const b = themeCard(t, false);
+    b.classList.add('mini');
+    b.addEventListener('click', () => {
+      for (const [key] of COLOR_FIELDS) draft[key] = t[key];
+      draft.text = t.text ?? '';
+      themePhraseInput.value = draft.text;
+      renderColorFields();
+      renderPreview();
+      playClick(1500);
     });
-    const span = document.createElement('span');
-    span.textContent = label;
-    wrap.append(input, span);
-    colorFields.appendChild(wrap);
+    copyFrom.appendChild(b);
   }
 }
+const previewText = themePreview.querySelector('.tp-text');
 
-function renderPhraseInput() {
-  phraseInput.value = currentPhrase();
-  phraseReset.hidden = settings.phrase === null;
-}
-
-phraseInput.addEventListener('input', () => {
-  settings.phrase = phraseInput.value;
-  phraseReset.hidden = false;
-  save();
-  renderPhrase();
+themePhraseInput.addEventListener('input', () => {
+  draft.text = themePhraseInput.value;
+  renderPreview();
 });
 
-phraseReset.addEventListener('click', () => {
-  settings.phrase = null;
-  save();
-  renderPhrase();
-  renderPhraseInput();
+function renderPreview() {
+  for (const [key] of COLOR_FIELDS) themePreview.style.setProperty(`--p-${key}`, draft[key]);
+  themePreview.style.setProperty('--p-pause-ink', inkOn(draft.pause));
+  previewText.textContent = (draft.text || '').split('\n')[0];
+}
+
+function openThemeEditor(id) {
+  editingId = id;
+  const src = id
+    ? settings.customThemes.find((t) => t.id === id)
+    : { ...themeColors(), text: currentPhrase(), name: `나의 테마 ${settings.customThemes.length + 1}` };
+  draft = { ...src };
+  themeNameInput.value = draft.name;
+  themePhraseInput.value = draft.text ?? '';
+  document.getElementById('themeDialogTitle').textContent = id ? '테마 수정' : '새 테마';
+  themeDeleteBtn.hidden = !id;
+  selectedParts.clear();
+  selectedParts.add('sector');
+  renderCopyFrom();
+  renderColorFields();
+  renderPreview();
+  themeDialog.returnValue = '';
+  themeDialog.showModal();
+}
+
+themeDialog.addEventListener('close', () => {
+  if (themeDialog.returnValue !== 'save') return;
+  draft.name = themeNameInput.value.trim() || `나의 테마 ${settings.customThemes.length + 1}`;
+  if (editingId) {
+    const i = settings.customThemes.findIndex((t) => t.id === editingId);
+    settings.customThemes[i] = { ...draft, id: editingId };
+  } else {
+    editingId = Date.now().toString(36);
+    settings.customThemes.push({ ...draft, id: editingId });
+  }
+  selectTheme(`c:${editingId}`);
+});
+
+function deleteTheme(id) {
+  const t = settings.customThemes.find((x) => x.id === id);
+  if (!t || !confirm(`'${t.name}' 테마를 삭제할까요?`)) return false;
+  settings.customThemes = settings.customThemes.filter((x) => x.id !== id);
+  if (settings.theme === `c:${id}`) settings.theme = DEFAULTS.theme;
+  selectTheme(settings.theme);
+  return true;
+}
+
+themeDeleteBtn.addEventListener('click', () => {
+  if (deleteTheme(editingId)) themeDialog.close('delete');
+});
+
+document.getElementById('deleteThemeBtn').addEventListener('click', () => {
+  const current = customTheme(settings.theme);
+  if (current) deleteTheme(current.id);
+});
+
+// 네모·막대를 손가락으로 끌어서 고르기
+function dragOn(el, onMove) {
+  const move = (e) => {
+    const r = el.getBoundingClientRect();
+    const x = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    const y = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+    onMove(x, y);
+    renderPicker();
+    applyPicked();
+  };
+  el.addEventListener('pointerdown', (e) => {
+    if (selectedParts.size === 0) return;
+    el.setPointerCapture(e.pointerId);
+    move(e);
+    el.addEventListener('pointermove', move);
+  });
+  const stop = () => el.removeEventListener('pointermove', move);
+  el.addEventListener('pointerup', stop);
+  el.addEventListener('pointercancel', stop);
+}
+dragOn(svBox, (x, y) => { hsv.s = x; hsv.v = 1 - y; });
+dragOn(hueBar, (x) => { hsv.h = Math.min(359.9, x * 360); });
+
+hexInput.addEventListener('input', () => {
+  const hex = parseColor(hexInput.value);
+  hexInput.classList.toggle('invalid', !hex && hexInput.value.trim() !== '');
+  if (hex) setFromHex(hex, hexInput);
+});
+hexInput.addEventListener('change', () => renderPicker());
+
+rgbInputs.forEach((input) => {
+  input.addEventListener('input', () => {
+    const v = rgbInputs.map((i) => Number(i.value));
+    if (v.every((n) => Number.isInteger(n) && n >= 0 && n <= 255) && rgbInputs.every((i) => i.value !== '')) {
+      setFromHex(toHex(v), 'rgb');
+    }
+  });
+  input.addEventListener('change', () => renderPicker());
 });
 
 const alarmSecondsInput = document.getElementById('alarmSecondsInput');
@@ -899,8 +1168,6 @@ for (const [id, key] of Object.entries(toggles)) {
 
 function renderSettings() {
   renderThemeList();
-  renderColorFields();
-  renderPhraseInput();
   renderAlarmSeconds();
   for (const [id, key] of Object.entries(toggles)) document.getElementById(id).checked = !!settings[key];
 }
@@ -908,8 +1175,8 @@ function renderSettings() {
 document.getElementById('settingsBtn').addEventListener('click', () => {
   audio();
   renderSettings();
-  document.getElementById('customBox').open = settings.theme === 'custom';
   settingsDialog.showModal();
+  themeList.querySelector('.selected')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 });
 
 /* ───────── 사용 방법 ───────── */
