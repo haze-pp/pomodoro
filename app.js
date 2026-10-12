@@ -162,7 +162,8 @@ const shade = (v, pct, to = '#000') => `color-mix(in srgb, var(${v}) ${pct}%, ${
 
 let sectorEl, knobRotEl, phraseEl, startG, startCap, startLabel, resetG, resetCap, hitEl;
 let startPressed = false;
-let resetPressed = false;
+let resetHolding = false;
+const RESET_HOLD_MS = 1000;
 const tickEls = [];
 const BODY_TOP = 40;               // 본체 윗면 y
 
@@ -254,7 +255,33 @@ function buildClock() {
     g.addEventListener('click', onClick);
   };
   pressable(startG, (v) => { startPressed = v; }, togglePause);
-  pressable(resetG, (v) => { resetPressed = v; }, resetTimer);
+
+  // RESET은 실수 방지를 위해 길게 누르기: 누르는 동안 천천히 들어가고 끝까지 들어가면 리셋
+  let holdTimer = null;
+  resetG.addEventListener('pointerdown', (e) => {
+    resetG.setPointerCapture(e.pointerId);
+    playClick(1500);
+    resetHolding = true;
+    render(true);
+    holdTimer = setTimeout(() => {
+      holdTimer = null;
+      resetHolding = false;
+      playClick(1500);
+      if (settings.vibrate && navigator.vibrate) navigator.vibrate(20);
+      resetTimer();
+    }, RESET_HOLD_MS);
+  });
+  const release = () => {
+    if (!holdTimer) return;
+    clearTimeout(holdTimer);
+    holdTimer = null;
+    resetHolding = false;
+    render(true);
+    showHint('RESET은 버튼이 끝까지 들어갈 때까지 길게 눌러 주세요');
+  };
+  resetG.addEventListener('pointerup', release);
+  resetG.addEventListener('pointercancel', release);
+  resetG.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
 // 상단 실물 버튼: 버튼 면 + 글자를 한 묶음으로
@@ -309,7 +336,7 @@ function fmt(ms) {
 
 function render(force) {
   const rem = remaining();
-  const key = `${Math.floor(rem / 100)}|${timer.running}|${timer.started}|${startPressed}|${resetPressed}|${settings.light}|${settings.readout}`;
+  const key = `${Math.floor(rem / 100)}|${timer.running}|${timer.started}|${startPressed}|${resetHolding}|${settings.light}|${settings.readout}`;
   if (!force && key === lastKey) return;
   lastKey = key;
 
@@ -333,7 +360,7 @@ function render(force) {
 
   // 상단 버튼 눌림 상태
   startCap.classList.toggle('pressed', startPressed || (timer.started && !timer.running));
-  resetCap.classList.toggle('pressed', resetPressed);
+  resetCap.classList.toggle('holding', resetHolding);
   // 진행 중엔 START/PAUSE가 왼쪽으로 비켜서고 RESET이 올라옴
   startG.classList.toggle('shifted', timer.started);
   resetG.classList.toggle('shown', timer.started);

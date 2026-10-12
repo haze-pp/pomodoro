@@ -99,6 +99,7 @@ body {
 /* 누르면 쏙 들어갔다가 튀어나오는 버튼 */
 #clock .cap { transition: transform .18s cubic-bezier(.3, 1.4, .5, 1); }
 #clock .cap.pressed { transform: translateY(32px); transition: transform .08s ease-in; }
+#clock .cap.holding { transform: translateY(32px); transition: transform 1s linear; }
 #clock .top-btn.shifted { transform: translateX(-50px); }
 #clock .reset-g { transform: translate(-50px, 48px); pointer-events: none; }
 #clock .reset-g.shown { transform: none; pointer-events: auto; }
