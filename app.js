@@ -847,6 +847,9 @@ function renderThemeList() {
   add.addEventListener('click', () => openThemeEditor(null));
   themeList.appendChild(add);
 
+  // 고른 테마가 안 보이는 곳에 있으면 보이게 밀어 줌
+  themeList.querySelector('.selected')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+
   const current = customTheme(settings.theme);
   editThemeBtn.hidden = !current;
   if (current) editThemeBtn.textContent = `'${current.name}' 수정·삭제`;
@@ -1163,6 +1166,7 @@ document.getElementById('settingsBtn').addEventListener('click', () => {
   audio();
   renderSettings();
   settingsDialog.showModal();
+  themeList.querySelector('.selected')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 });
 
 /* ───────── 사용 방법 ───────── */

@@ -1,5 +1,5 @@
 // 오프라인 실행용 캐시. 파일을 수정하면 VERSION을 올려 주세요.
-const VERSION = 'focus-timer-v18';
+const VERSION = 'focus-timer-v19';
 const ASSETS = [
   './',
   'index.html',

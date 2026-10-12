@@ -233,10 +233,23 @@ body.focus .hint.nudge { opacity: 1; }
 }
 .minutes-input span { font-size: 20px; }
 
+/* 테마 목록: 한 줄로 두고 옆으로 밀어서 보기 (다음 카드가 살짝 보이게) */
 .theme-list {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
   gap: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  margin: 0 -20px;
+  padding: 2px 20px 6px;
+  scroll-padding: 0 20px;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 28px), transparent);
+          mask-image: linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 28px), transparent);
+}
+.theme-list::-webkit-scrollbar { display: none; }
+.theme-list .theme-card {
+  flex: 0 0 calc((100% - 3 * 8px) / 4.4);
+  scroll-snap-align: start;
 }
 .theme-card {
   display: flex;
