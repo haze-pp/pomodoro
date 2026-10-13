@@ -312,6 +312,8 @@ body.focus .hint.nudge { opacity: 1; }
   display: grid;
   place-items: center;
 }
+.head-actions { display: flex; gap: 4px; margin-left: auto; margin-right: 6px; }
+.sheet .icon-action:disabled { opacity: .35; }
 .sheet .icon-action.danger { color: #c0392b; background: #fbeeee; }
 
 .text-input {

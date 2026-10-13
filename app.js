@@ -938,12 +938,11 @@ function renderPicker(skip) {
 }
 
 // 선택한 부분 모두에 현재 색 적용 (한 프레임에 한 번만)
-let applyQueued = false;
+let applyQueued = 0;
 function applyPicked() {
   if (applyQueued || selectedParts.size === 0) return;
-  applyQueued = true;
-  requestAnimationFrame(() => {
-    applyQueued = false;
+  applyQueued = requestAnimationFrame(() => {
+    applyQueued = 0;
     const hex = toHex(hsvToRgb(hsv));
     for (const key of selectedParts) draft[key] = hex;
     renderChips();
@@ -981,6 +980,7 @@ function renderChips() {
           Object.assign(hsv, rgbToHsv(fromHex(draft[key])));
         } else {
           // 여러 개를 고르면 지금 선택기 색으로 맞춤
+          recordStep();
           applyPicked();
         }
       }
@@ -1014,6 +1014,7 @@ function renderCopyFrom() {
     const b = themeCard(t, false);
     b.classList.add('mini');
     b.addEventListener('click', () => {
+      recordStep();
       for (const [key] of COLOR_FIELDS) draft[key] = t[key];
       draft.text = t.text ?? '';
       themePhraseInput.value = draft.text;
@@ -1027,8 +1028,63 @@ function renderCopyFrom() {
 const previewText = themePreview.querySelector('.tp-text');
 
 themePhraseInput.addEventListener('input', () => {
+  startTyping(themePhraseInput);
   draft.text = themePhraseInput.value;
   renderPreview();
+});
+themeNameInput.addEventListener('input', () => {
+  startTyping(themeNameInput);
+  draft.name = themeNameInput.value;
+});
+
+/* 되돌리기·다시 하기: 바꾸기 직전 상태를 쌓아 둠 (드래그 한 번, 입력 한 번 = 한 단계) */
+const undoBtn = document.getElementById('undoBtn');
+const redoBtn = document.getElementById('redoBtn');
+let undoStack = [];
+let redoStack = [];
+let typingIn = null;
+
+function recordStep() {
+  undoStack.push({ ...draft });
+  if (undoStack.length > 100) undoStack.shift();
+  redoStack = [];
+  renderHistoryButtons();
+}
+
+// 같은 칸에 이어서 입력하는 동안은 한 단계로 묶음
+function startTyping(field) {
+  if (typingIn === field) return;
+  typingIn = field;
+  recordStep();
+}
+for (const ev of ['change', 'blur']) document.addEventListener(ev, () => { typingIn = null; }, true);
+
+function renderHistoryButtons() {
+  undoBtn.disabled = undoStack.length === 0;
+  redoBtn.disabled = redoStack.length === 0;
+}
+
+function restore(snapshot) {
+  cancelAnimationFrame(applyQueued);
+  applyQueued = 0;
+  typingIn = null;
+  draft = { ...snapshot };
+  themeNameInput.value = draft.name ?? '';
+  themePhraseInput.value = draft.text ?? '';
+  renderColorFields();
+  renderPreview();
+  renderHistoryButtons();
+}
+
+undoBtn.addEventListener('click', () => {
+  if (!undoStack.length) return;
+  redoStack.push({ ...draft });
+  restore(undoStack.pop());
+});
+redoBtn.addEventListener('click', () => {
+  if (!redoStack.length) return;
+  undoStack.push({ ...draft });
+  restore(redoStack.pop());
 });
 
 function renderPreview() {
@@ -1050,6 +1106,10 @@ function openThemeEditor(id) {
   themeDeleteBtn.hidden = !id;
   selectedParts.clear();
   selectedParts.add('sector');
+  undoStack = [];
+  redoStack = [];
+  typingIn = null;
+  renderHistoryButtons();
   renderCopyFrom();
   renderColorFields();
   renderPreview();
@@ -1059,7 +1119,7 @@ function openThemeEditor(id) {
 
 themeDialog.addEventListener('close', () => {
   if (themeDialog.returnValue !== 'save') return;
-  draft.name = themeNameInput.value.trim() || `나의 테마 ${settings.customThemes.length + 1}`;
+  draft.name = (draft.name ?? '').trim() || `나의 테마 ${settings.customThemes.length + 1}`;
   if (editingId) {
     const i = settings.customThemes.findIndex((t) => t.id === editingId);
     settings.customThemes[i] = { ...draft, id: editingId };
@@ -1100,6 +1160,7 @@ function dragOn(el, onMove) {
   };
   el.addEventListener('pointerdown', (e) => {
     if (selectedParts.size === 0) return;
+    recordStep();
     el.setPointerCapture(e.pointerId);
     move(e);
     el.addEventListener('pointermove', move);
@@ -1114,7 +1175,10 @@ dragOn(hueBar, (x) => { hsv.h = Math.min(359.9, x * 360); });
 hexInput.addEventListener('input', () => {
   const hex = parseColor(hexInput.value);
   hexInput.classList.toggle('invalid', !hex && hexInput.value.trim() !== '');
-  if (hex) setFromHex(hex, hexInput);
+  if (hex) {
+    startTyping(hexInput);
+    setFromHex(hex, hexInput);
+  }
 });
 hexInput.addEventListener('change', () => renderPicker());
 
@@ -1122,6 +1186,7 @@ rgbInputs.forEach((input) => {
   input.addEventListener('input', () => {
     const v = rgbInputs.map((i) => Number(i.value));
     if (v.every((n) => Number.isInteger(n) && n >= 0 && n <= 255) && rgbInputs.every((i) => i.value !== '')) {
+      startTyping(input);
       setFromHex(toHex(v), 'rgb');
     }
   });
