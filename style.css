@@ -312,6 +312,8 @@ body.focus .hint.nudge { opacity: 1; }
   display: grid;
   place-items: center;
 }
+.head-actions { display: flex; gap: 4px; margin-left: auto; margin-right: 6px; }
+.sheet .icon-action:disabled { opacity: .35; }
 .sheet .icon-action.danger { color: #c0392b; background: #fbeeee; }
 
 .text-input {
@@ -332,12 +334,25 @@ body.focus .hint.nudge { opacity: 1; }
   border-radius: 14px;
   background: var(--p-bg);
 }
+.tp-btns { display: flex; gap: 6px; margin-bottom: -2px; }
 .tp-btn {
   width: 52px;
   height: 12px;
-  margin-bottom: -2px;
   border-radius: 4px 4px 0 0;
   background: var(--p-pause);
+}
+.tp-btn.tp-reset { width: 28px; background: var(--p-reset); }
+/* 매초 움직이는 눈금 하나 */
+.tp-sec {
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  width: 4px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--p-secTick);
+  transform-origin: 50% 48px;
+  transform: translateX(-50%) rotate(-24deg);
 }
 .tp-body {
   display: grid;

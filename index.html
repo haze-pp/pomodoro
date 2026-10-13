@@ -100,14 +100,18 @@
     <form method="dialog">
       <div class="sheet-head">
         <h2 id="themeDialogTitle">새 테마</h2>
+        <div class="head-actions">
+          <button type="button" id="undoBtn" class="icon-action" aria-label="되돌리기" disabled><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+          <button type="button" id="redoBtn" class="icon-action" aria-label="다시 하기" disabled><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+        </div>
         <button value="cancel" class="close-btn" aria-label="닫기" formnovalidate>
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
       </div>
 
       <div id="themePreview" class="theme-preview" aria-hidden="true">
-        <div class="tp-btn"></div>
-        <div class="tp-body"><div class="tp-face"><div class="tp-sector"></div><span class="tp-text"></span><div class="tp-knob"></div></div></div>
+        <div class="tp-btns"><div class="tp-btn"></div><div class="tp-btn tp-reset"></div></div>
+        <div class="tp-body"><div class="tp-face"><div class="tp-sector"></div><div class="tp-sec"></div><span class="tp-text"></span><div class="tp-knob"></div></div></div>
       </div>
 
       <h3>다른 테마에서 가져오기</h3>

@@ -11,24 +11,24 @@ const STORE_KEY = 'focus-timer:v1';
 const THEMES = {
   sage: {
     name: '세이지', bg: '#e4e8df', body: '#b7c4ae', face: '#fbfbf7', sector: '#c8643b',
-    knob: '#f4f0e7', pause: '#c8643b', ticks: '#4a5847', phrase: '#c8643b',
+    knob: '#f4f0e7', pause: '#c8643b', reset: '#4a5847', ticks: '#4a5847', secTick: '#c8643b', phrase: '#c8643b',
     text: 'Begin gently.',
   },
   lavender: {
     name: '라벤더', bg: '#e9e6f1', body: '#c9c1e1', face: '#fdfcff', sector: '#4b3f8f',
-    knob: '#f7f4fc', pause: '#4b3f8f', ticks: '#4a4466', phrase: '#4b3f8f',
+    knob: '#f7f4fc', pause: '#4b3f8f', reset: '#4a4466', ticks: '#4a4466', secTick: '#4b3f8f', phrase: '#4b3f8f',
     text: 'Stay with it.',
   },
   charcoal: {
     name: '차콜', bg: '#1f2123', body: '#3a3e42', face: '#f1eee8', sector: '#ee9f35',
-    knob: '#2d3034', pause: '#ee9f35', ticks: '#3b3f43', phrase: '#b8742a',
+    knob: '#2d3034', pause: '#ee9f35', reset: '#f1eee8', ticks: '#3b3f43', secTick: '#ee9f35', phrase: '#b8742a',
     text: 'Deep work\nmode.',
   },
 };
 const COLOR_FIELDS = [
   ['bg', '배경'], ['body', '본체'], ['face', '다이얼 판'], ['sector', '시간 원판'],
-  ['knob', '손잡이'], ['pause', 'START 버튼'],
-  ['ticks', '눈금·숫자'], ['phrase', '문구 색'],
+  ['knob', '손잡이'], ['pause', 'START 버튼'], ['reset', 'RESET 버튼'],
+  ['ticks', '눈금·숫자'], ['secTick', '초 표시 눈금'], ['phrase', '문구 색'],
 ];
 
 const DEFAULTS = {
@@ -57,6 +57,11 @@ function loadSettings() {
       if (saved.theme === 'custom') saved.theme = 'c:c1';
     }
     delete saved.custom;
+    // 예전에 만든 테마엔 RESET·초 표시 색이 없음 → 당시 화면과 같은 색으로 채움
+    for (const t of saved.customThemes) {
+      t.reset ??= contrast(t.ticks, t.body) >= 2 ? t.ticks : t.face;
+      t.secTick ??= t.sector;
+    }
     if (!THEMES[saved.theme] && !customTheme(saved.theme, saved)) saved.theme = DEFAULTS.theme;
     // 예전의 공통 가운데 문구: 직접 만든 테마를 쓰던 중이면 그 테마 문구로 (기본 테마 문구는 고정)
     const oldTheme = customTheme(saved.theme, saved);
@@ -366,7 +371,7 @@ function render(force) {
       tickEls[litTick].setAttribute('stroke-width', tickEls[litTick].dataset.w);
     }
     if (idx >= 0) {
-      tickEls[idx].style.stroke = 'var(--sector)';
+      tickEls[idx].style.stroke = 'var(--secTick)';
       tickEls[idx].setAttribute('stroke-width', Number(tickEls[idx].dataset.w) + 2.4);
     }
     litTick = idx;
@@ -773,10 +778,8 @@ function applyTheme() {
   const root = document.documentElement.style;
   for (const [key] of COLOR_FIELDS) root.setProperty(`--${key}`, c[key]);
   root.setProperty('--pause-ink', inkOn(c.pause));
-  // RESET은 눈금 색으로 칠하되, 본체와 구분이 안 되면 다이얼 판 색으로
-  const resetBg = contrast(c.ticks, c.body) >= 2 ? c.ticks : c.face;
-  root.setProperty('--reset-bg', resetBg);
-  root.setProperty('--reset-ink', inkOn(resetBg));
+  root.setProperty('--reset-bg', c.reset);
+  root.setProperty('--reset-ink', inkOn(c.reset));
   root.setProperty('--ink', inkOn(c.bg));
   root.setProperty('--body-ink', inkOn(c.body));
   metaTheme.setAttribute('content', c.bg);
@@ -935,12 +938,11 @@ function renderPicker(skip) {
 }
 
 // 선택한 부분 모두에 현재 색 적용 (한 프레임에 한 번만)
-let applyQueued = false;
+let applyQueued = 0;
 function applyPicked() {
   if (applyQueued || selectedParts.size === 0) return;
-  applyQueued = true;
-  requestAnimationFrame(() => {
-    applyQueued = false;
+  applyQueued = requestAnimationFrame(() => {
+    applyQueued = 0;
     const hex = toHex(hsvToRgb(hsv));
     for (const key of selectedParts) draft[key] = hex;
     renderChips();
@@ -978,6 +980,7 @@ function renderChips() {
           Object.assign(hsv, rgbToHsv(fromHex(draft[key])));
         } else {
           // 여러 개를 고르면 지금 선택기 색으로 맞춤
+          recordStep();
           applyPicked();
         }
       }
@@ -1011,6 +1014,7 @@ function renderCopyFrom() {
     const b = themeCard(t, false);
     b.classList.add('mini');
     b.addEventListener('click', () => {
+      recordStep();
       for (const [key] of COLOR_FIELDS) draft[key] = t[key];
       draft.text = t.text ?? '';
       themePhraseInput.value = draft.text;
@@ -1024,13 +1028,69 @@ function renderCopyFrom() {
 const previewText = themePreview.querySelector('.tp-text');
 
 themePhraseInput.addEventListener('input', () => {
+  startTyping(themePhraseInput);
   draft.text = themePhraseInput.value;
   renderPreview();
+});
+themeNameInput.addEventListener('input', () => {
+  startTyping(themeNameInput);
+  draft.name = themeNameInput.value;
+});
+
+/* 되돌리기·다시 하기: 바꾸기 직전 상태를 쌓아 둠 (드래그 한 번, 입력 한 번 = 한 단계) */
+const undoBtn = document.getElementById('undoBtn');
+const redoBtn = document.getElementById('redoBtn');
+let undoStack = [];
+let redoStack = [];
+let typingIn = null;
+
+function recordStep() {
+  undoStack.push({ ...draft });
+  if (undoStack.length > 100) undoStack.shift();
+  redoStack = [];
+  renderHistoryButtons();
+}
+
+// 같은 칸에 이어서 입력하는 동안은 한 단계로 묶음
+function startTyping(field) {
+  if (typingIn === field) return;
+  typingIn = field;
+  recordStep();
+}
+for (const ev of ['change', 'blur']) document.addEventListener(ev, () => { typingIn = null; }, true);
+
+function renderHistoryButtons() {
+  undoBtn.disabled = undoStack.length === 0;
+  redoBtn.disabled = redoStack.length === 0;
+}
+
+function restore(snapshot) {
+  cancelAnimationFrame(applyQueued);
+  applyQueued = 0;
+  typingIn = null;
+  draft = { ...snapshot };
+  themeNameInput.value = draft.name ?? '';
+  themePhraseInput.value = draft.text ?? '';
+  renderColorFields();
+  renderPreview();
+  renderHistoryButtons();
+}
+
+undoBtn.addEventListener('click', () => {
+  if (!undoStack.length) return;
+  redoStack.push({ ...draft });
+  restore(undoStack.pop());
+});
+redoBtn.addEventListener('click', () => {
+  if (!redoStack.length) return;
+  undoStack.push({ ...draft });
+  restore(redoStack.pop());
 });
 
 function renderPreview() {
   for (const [key] of COLOR_FIELDS) themePreview.style.setProperty(`--p-${key}`, draft[key]);
   themePreview.style.setProperty('--p-pause-ink', inkOn(draft.pause));
+  themePreview.style.setProperty('--p-reset-ink', inkOn(draft.reset));
   previewText.textContent = (draft.text || '').split('\n')[0];
 }
 
@@ -1046,6 +1106,10 @@ function openThemeEditor(id) {
   themeDeleteBtn.hidden = !id;
   selectedParts.clear();
   selectedParts.add('sector');
+  undoStack = [];
+  redoStack = [];
+  typingIn = null;
+  renderHistoryButtons();
   renderCopyFrom();
   renderColorFields();
   renderPreview();
@@ -1055,7 +1119,7 @@ function openThemeEditor(id) {
 
 themeDialog.addEventListener('close', () => {
   if (themeDialog.returnValue !== 'save') return;
-  draft.name = themeNameInput.value.trim() || `나의 테마 ${settings.customThemes.length + 1}`;
+  draft.name = (draft.name ?? '').trim() || `나의 테마 ${settings.customThemes.length + 1}`;
   if (editingId) {
     const i = settings.customThemes.findIndex((t) => t.id === editingId);
     settings.customThemes[i] = { ...draft, id: editingId };
@@ -1096,6 +1160,7 @@ function dragOn(el, onMove) {
   };
   el.addEventListener('pointerdown', (e) => {
     if (selectedParts.size === 0) return;
+    recordStep();
     el.setPointerCapture(e.pointerId);
     move(e);
     el.addEventListener('pointermove', move);
@@ -1110,7 +1175,10 @@ dragOn(hueBar, (x) => { hsv.h = Math.min(359.9, x * 360); });
 hexInput.addEventListener('input', () => {
   const hex = parseColor(hexInput.value);
   hexInput.classList.toggle('invalid', !hex && hexInput.value.trim() !== '');
-  if (hex) setFromHex(hex, hexInput);
+  if (hex) {
+    startTyping(hexInput);
+    setFromHex(hex, hexInput);
+  }
 });
 hexInput.addEventListener('change', () => renderPicker());
 
@@ -1118,6 +1186,7 @@ rgbInputs.forEach((input) => {
   input.addEventListener('input', () => {
     const v = rgbInputs.map((i) => Number(i.value));
     if (v.every((n) => Number.isInteger(n) && n >= 0 && n <= 255) && rgbInputs.every((i) => i.value !== '')) {
+      startTyping(input);
       setFromHex(toHex(v), 'rgb');
     }
   });
