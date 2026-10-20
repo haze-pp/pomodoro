@@ -938,6 +938,12 @@ function usePreset(i, quiet) {
 // 맨 왼쪽 초기화: 프리셋 선택과 이름을 지우고 다이얼을 0으로
 const clearBtn = document.getElementById('clearBtn');
 clearBtn.addEventListener('click', () => {
+  // 회차를 하나 이상 마친 세션이 아직 남아 있으면 한 번 확인
+  const p = timer.plan;
+  if (p && timer.doneRounds > 0 && !sessionDone()) {
+    const label = timer.name ? `'${timer.name}' 세션` : '진행 중인 세션';
+    if (!confirm(`${label}(${p.repeat}회 중 ${timer.doneRounds}회 완료)이 초기화돼요. 되돌릴 수 없어요.\n마친 회차는 기록에 남아요.`)) return;
+  }
   audio();
   playClick();
   stopAlarm();
