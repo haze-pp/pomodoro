@@ -38,7 +38,13 @@
           <p id="readout" class="readout" aria-live="polite"></p>
         </section>
 
-        <nav id="presets" class="presets" aria-label="세션 프리셋"></nav>
+        <div class="preset-row">
+          <button type="button" id="clearBtn" class="preset clear-btn" aria-label="초기화: 프리셋 선택과 이름을 지우고 다이얼을 0으로">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg>
+            <span class="p-sub">초기화</span>
+          </button>
+          <nav id="presets" class="presets" aria-label="세션 프리셋"></nav>
+        </div>
       </main>
 
       <p id="hint" class="hint">다이얼을 돌려 시간을 맞추고 START를 눌러 주세요</p>
@@ -153,7 +159,8 @@
 
         <h3>세션 프리셋</h3>
         <ul>
-          <li>오른쪽 <b>+</b>를 눌러 이름(선택), 집중 시간, 방식, 반복 횟수를 저장해요. 길게 누르면 수정하거나 삭제할 수 있어요.</li>
+          <li>시계 아래 <b>+</b>를 눌러 이름(선택), 집중 시간, 방식, 반복 횟수를 저장해요. 길게 누르면 수정하거나 삭제할 수 있어요.</li>
+          <li>맨 왼쪽 <b>초기화</b>를 누르면 프리셋 선택과 이름이 지워지고 다이얼이 0으로 돌아가요.</li>
           <li><b>집중만</b>: 한 회가 끝나면 다음 회 시간이 채워지고, START를 눌러 직접 시작해요. 버튼에 <b>×4</b>처럼 보여요.</li>
           <li><b>집중 + 휴식</b>: 집중 → 휴식 → 집중…이 짧은 알람과 함께 자동으로 이어져요. 마지막 집중이 끝나면 멈춰요. 버튼에 <b>↻4</b>처럼 보여요.</li>
           <li>반복이 2회 이상이면 시계 위에 동그라미가 생기고, 마친 회차만큼 채워져요.</li>

@@ -106,16 +106,17 @@ body {
 
 #app {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 14px;
   transition: gap .45s ease;
   width: 100%;
   max-width: 640px;
 }
 
 .clock-area {
-  flex: 1;
+  width: 100%;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -124,7 +125,7 @@ body {
 
 #clock {
   width: 100%;
-  max-height: 70dvh;
+  max-height: 56dvh;
   touch-action: none;
   filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .14));
 }
@@ -139,9 +140,9 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 12px;
   max-width: 100%;
-  margin-bottom: 2px;
+  margin-bottom: 18px;
 }
 .session-name {
   min-height: 28px;
@@ -211,21 +212,29 @@ body.focus .session-name.empty { visibility: hidden; }
 /* 다이얼을 돌리는 중: 손가락에 가려지지 않게 크게 */
 .readout.setting { transform: scale(1.35); opacity: 1; font-weight: 600; }
 
+/* 시계 아래 한 줄: 맨 왼쪽 초기화 + 세션 프리셋 4개 */
+.preset-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  max-width: 360px;
+  max-height: 80px;
+  transition: opacity .3s ease, transform .45s ease, max-height .45s ease;
+}
 .presets {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  flex: 0 0 auto;
-  max-width: 64px;
-  transition: opacity .3s ease, transform .45s ease, max-width .45s ease;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
 }
+.presets .preset { flex: 1 1 0; min-width: 0; }
 
-/* 타이머 진행 중: 버튼은 옆으로 빠지고 시계가 가운데로 */
+/* 타이머 진행 중: 버튼은 아래로 빠지고 시계가 가운데로 */
 body.focus #app { gap: 0; }
-body.focus .presets {
+body.focus .preset-row {
   opacity: 0;
-  transform: translateX(48px);
-  max-width: 0;
+  transform: translateY(32px);
+  max-height: 0;
   pointer-events: none;
 }
 .hint { transition: opacity .3s; }
@@ -245,6 +254,7 @@ body.focus .hint { opacity: 0; }
   padding: 0 3px;
   width: 64px;
   height: 64px;
+  max-width: 72px;
   border-radius: 16px;
   border: 2px solid color-mix(in srgb, var(--body) 60%, var(--ticks));
   background: var(--body);
@@ -267,6 +277,17 @@ body.focus .hint { opacity: 0; }
   opacity: .7;
 }
 .preset.active { border-color: var(--sector); }
+.preset.clear-btn {
+  flex: 0 0 52px;
+  width: 52px;
+  margin-right: 4px;
+  gap: 3px;
+  background: transparent;
+  color: var(--ink);
+  box-shadow: none;
+}
+.preset.clear-btn:active { transform: none; box-shadow: none; }
+.preset.clear-btn:disabled { opacity: .35; cursor: default; }
 .preset .p-main, .preset .p-sub {
   max-width: 100%;
   overflow: hidden;
@@ -787,8 +808,16 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
 
 /* 가로 화면 */
 @media (orientation: landscape) and (max-height: 520px) {
-  #clock { max-height: 68dvh; }
-  .session-head { gap: 2px; }
+  #clock { max-height: 64dvh; }
+  .session-head { gap: 4px; margin-bottom: 8px; }
+  /* 가로 화면: 버튼은 시계 왼쪽 세로 줄로 (오른쪽 위 아이콘과 겹치지 않게) */
+  #app { flex-direction: row-reverse; gap: 12px; }
+  .clock-area { flex: 1; width: auto; }
+  .preset-row { flex-direction: column; width: auto; max-width: 64px; max-height: none; }
+  .presets { flex-direction: column; }
+  .preset.clear-btn { flex-basis: auto; height: 52px; margin: 0 0 4px; }
+  .presets .preset { flex: 0 0 auto; }
+  body.focus .preset-row { transform: translateX(-48px); max-width: 0; max-height: none; }
   .hint { display: none; }
   .readout { font-size: 18px; margin-top: 4px; }
 }

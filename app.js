@@ -453,6 +453,7 @@ function render(force) {
 
   renderSession();
   svg.classList.toggle('break', timer.phase === 'break');
+  clearBtn.disabled = !timer.plan && !timer.name && rem <= 0;
 
   const min = rem / 60000;
   sectorEl.setAttribute('d', sectorPath(min));
@@ -930,6 +931,24 @@ function usePreset(i, quiet) {
   markActivePreset();
   render(true);
 }
+
+// 맨 왼쪽 초기화: 프리셋 선택과 이름을 지우고 다이얼을 0으로
+const clearBtn = document.getElementById('clearBtn');
+clearBtn.addEventListener('click', () => {
+  audio();
+  playClick();
+  stopAlarm();
+  stopRun();
+  timer.started = false;
+  leaveSession();
+  timer.name = '';
+  timer.focusStart = 0;
+  timer.remainingMs = 0;
+  timer.sessionMinutes = 0;
+  persistTimer();
+  markActivePreset();
+  render(true);
+});
 
 function presetMode() {
   return modeInputs.find((r) => r.checked)?.value ?? 'focus';
