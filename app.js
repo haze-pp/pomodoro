@@ -162,6 +162,7 @@ function restoreTimer() {
 function start() {
   if (timer.running || timer.remainingMs <= 0) return;
   if (!timer.started && timer.phase === 'focus') timer.focusStart = Date.now();
+  if (!timer.started) pager.scrollTo({ left: 0 }); // 진행 중엔 페이지가 잠기므로 타이머 화면에 둠
   timer.started = true;
   timer.running = true;
   timer.endAt = Date.now() + timer.remainingMs;
