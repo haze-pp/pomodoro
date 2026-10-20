@@ -232,12 +232,12 @@ body.focus .session-name.empty { visibility: hidden; }
 /* 타이머 진행 중: 버튼은 아래로 빠지고 시계가 가운데로 */
 body.focus #app { gap: 0; }
 
-/* 진행 중(일시정지 포함)에는 START/PAUSE/RESUME·RESET 말고는 눌리지 않게 잠금 */
-body.focus .icon-btn, body.focus .session-name, body.focus .page-dots {
+/* 집중 시간이 흐르는 동안에는 위쪽 버튼 말고는 눌리지 않게 잠금 (일시정지·휴식 중엔 풀림) */
+body.locked .icon-btn, body.locked .session-name, body.locked .page-dots {
   pointer-events: none;
   opacity: .3;
 }
-body.focus .pager { overflow-x: hidden; touch-action: none; }
+body.locked .pager { overflow-x: hidden; touch-action: none; }
 .icon-btn, .session-name, .page-dots { transition: opacity .3s; }
 body.focus .preset-row {
   opacity: 0;

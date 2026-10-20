@@ -162,7 +162,6 @@ function restoreTimer() {
 function start() {
   if (timer.running || timer.remainingMs <= 0) return;
   if (!timer.started && timer.phase === 'focus') timer.focusStart = Date.now();
-  if (!timer.started) pager.scrollTo({ left: 0 }); // 진행 중엔 페이지가 잠기므로 타이머 화면에 둠
   timer.started = true;
   timer.running = true;
   timer.endAt = Date.now() + timer.remainingMs;
@@ -498,6 +497,9 @@ function render(force) {
   }
   // 시작하면 자주 쓰는 시간 버튼이 빠지고 시계가 가운데로
   document.body.classList.toggle('focus', timer.started);
+  // 집중 시간이 흐르는 동안만 잠금. 휴식 중 기록 화면을 보다가 집중이 시작되면 타이머 화면으로 돌아옴
+  const locked = timer.running && timer.phase === 'focus';
+  if (document.body.classList.toggle('locked', locked) && pager.scrollLeft) pager.scrollTo({ left: 0 });
 }
 
 /* ───────── 세션 이름·회차 ───────── */
