@@ -25,25 +25,104 @@
     </svg>
   </button>
 
-  <main id="app">
-    <section class="clock-area">
-      <svg id="clock" viewBox="0 0 400 420" role="img" aria-label="타이머 다이얼"></svg>
-      <p id="readout" class="readout" aria-live="polite"></p>
+  <!-- 옆으로 넘기는 페이지: 타이머 / 기록 -->
+  <div id="pager" class="pager">
+    <section class="page timer-page" aria-label="타이머">
+      <main id="app">
+        <section class="clock-area">
+          <div class="session-head">
+            <button type="button" id="sessionName" class="session-name empty">+ 이름</button>
+            <div id="rounds" class="rounds" role="img"></div>
+          </div>
+          <svg id="clock" viewBox="0 0 400 420" role="img" aria-label="타이머 다이얼"></svg>
+          <p id="readout" class="readout" aria-live="polite"></p>
+        </section>
+
+        <div class="preset-row">
+          <button type="button" id="clearBtn" class="preset clear-btn" aria-label="초기화: 프리셋 선택과 이름을 지우고 다이얼을 0으로">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg>
+            <span class="p-sub">초기화</span>
+          </button>
+          <nav id="presets" class="presets" aria-label="세션 프리셋"></nav>
+        </div>
+      </main>
+
+      <p id="hint" class="hint">다이얼을 돌려 시간을 맞추고 START를 눌러 주세요</p>
     </section>
 
-    <nav id="presets" class="presets" aria-label="자주 쓰는 시간"></nav>
-  </main>
+    <section class="page log-page" aria-label="기록">
+      <div class="log-inner">
+        <h2 class="log-title">기록</h2>
+        <div id="logSummary" class="log-summary"></div>
+        <div class="heatmap-box">
+          <div id="hmMonths" class="hm-months"></div>
+          <div class="hm-grid">
+            <div class="hm-days" aria-hidden="true"><span></span><span>월</span><span></span><span>수</span><span></span><span>금</span><span></span></div>
+            <div id="heatmap" class="heatmap"></div>
+          </div>
+          <div class="hm-legend" aria-hidden="true">
+            <span>적음</span><i data-level="0"></i><i data-level="1"></i><i data-level="2"></i><i data-level="3"></i><i data-level="4"></i><span>많음</span>
+          </div>
+        </div>
+        <h3 id="dayTitle" class="day-title"></h3>
+        <ol id="dayList" class="day-list"></ol>
+      </div>
+    </section>
+  </div>
 
-  <p id="hint" class="hint">다이얼을 돌려 시간을 맞추고 START를 눌러 주세요</p>
+  <nav id="pageDots" class="page-dots" aria-label="페이지">
+    <button type="button" class="on" aria-label="타이머" aria-current="page"></button>
+    <button type="button" aria-label="기록" aria-current="false"></button>
+  </nav>
 
-  <!-- 자주 쓰는 시간 편집 -->
+  <!-- 이름 붙이기 -->
+  <dialog id="nameDialog" class="sheet">
+    <form method="dialog">
+      <h2>이름</h2>
+      <input id="nameInput" class="text-input" type="text" maxlength="20" placeholder="예: 영어 공부" autocomplete="off">
+      <p class="note">비워 두면 이름 없이 기록돼요.</p>
+      <div class="sheet-actions">
+        <span class="spacer"></span>
+        <button value="cancel" formnovalidate>취소</button>
+        <button value="save" class="primary">저장</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 세션 프리셋 편집 -->
   <dialog id="presetDialog" class="sheet">
     <form method="dialog">
-      <h2 id="presetTitle">자주 쓰는 시간</h2>
+      <h2 id="presetTitle">세션 프리셋</h2>
+
+      <h3>이름 (선택)</h3>
+      <input id="presetName" class="text-input" type="text" maxlength="12" placeholder="예: 공부" autocomplete="off">
+
+      <h3>집중 시간</h3>
       <label class="minutes-input">
         <input id="presetMinutes" type="number" inputmode="numeric" min="1" max="60" step="1" required>
         <span>분</span>
       </label>
+
+      <h3>방식</h3>
+      <div class="mode-pick">
+        <label><input type="radio" name="presetMode" value="focus"><span><b>집중만</b><small>회차마다 START를 눌러 시작</small></span></label>
+        <label><input type="radio" name="presetMode" value="cycle"><span><b>집중 + 휴식</b><small>휴식을 넣어 자동으로 이어서</small></span></label>
+      </div>
+
+      <div id="breakField">
+        <h3>휴식 시간</h3>
+        <label class="minutes-input small">
+          <input id="presetBreak" type="number" inputmode="numeric" min="1" max="60" step="1">
+          <span>분</span>
+        </label>
+      </div>
+
+      <h3>반복 횟수</h3>
+      <label class="minutes-input small">
+        <input id="presetRepeat" type="number" inputmode="numeric" min="1" max="12" step="1">
+        <span>회</span>
+      </label>
+
       <div class="sheet-actions">
         <button type="button" id="presetDelete" class="danger">삭제</button>
         <span class="spacer"></span>
@@ -68,15 +147,34 @@
           <li>시계판을 손가락으로 돌려 시간을 맞춰요. 1분 단위로 최대 60분까지 맞출 수 있어요.</li>
           <li>위쪽 <b>START</b>를 누르면 버튼이 눌려 들어간 채로 타이머가 돌아가요.</li>
           <li>눌려 있는 버튼을 한 번 더 누르면 버튼이 올라오면서 일시정지돼요. <b>RESUME</b>을 누르면 이어서 시작해요.</li>
-          <li>처음 맞춘 시간으로 되돌리려면 위쪽 버튼 옆에 나타나는 <b>RESET</b>을 버튼이 끝까지 들어갈 때까지(약 1초) 길게 눌러요. 진행 중에는 실수로 바뀌지 않게 다이얼이 잠겨요.</li>
+          <li>처음 맞춘 시간으로 되돌리려면 위쪽 버튼 옆에 나타나는 <b>RESET</b>을 버튼이 끝까지 들어갈 때까지(약 1초) 길게 눌러요. RESET하면 하던 집중 시간은 기록되지 않아요.</li>
+          <li>집중 시간이 흐르는 동안에는 실수로 눌리지 않게 위쪽 버튼(PAUSE, RESET) 말고는 모두 잠겨요(이름, 설정, 사용 방법, 기록 화면으로 넘기기). 일시정지하거나 휴식 중일 때는 풀려요. 알람이 울릴 때 화면을 눌러 끄는 건 언제나 돼요.</li>
+          <li>진행 중(일시정지 포함)에는 다이얼이 잠겨요.</li>
           <li>시간이 다 되면 알람이 울려요. 화면 아무 곳이나 누르면 꺼져요.</li>
         </ol>
 
-        <h3>자주 쓰는 시간</h3>
+        <h3>이름</h3>
         <ul>
-          <li>오른쪽 <b>+</b>를 눌러 시간을 저장해요.</li>
-          <li>저장된 버튼(예: 30분)을 누르면 다이얼이 그 시간으로 맞춰져요.</li>
-          <li>길게 누르면 수정하거나 삭제할 수 있어요.</li>
+          <li>시계 위의 <b>+ 이름</b>을 눌러 지금 타이머에 이름을 붙일 수 있어요. 안 붙여도 괜찮아요.</li>
+          <li>이름은 기록에 함께 남아요.</li>
+        </ul>
+
+        <h3>세션 프리셋</h3>
+        <ul>
+          <li>시계 아래 <b>+</b>를 눌러 이름(선택), 집중 시간, 방식, 반복 횟수를 저장해요. 길게 누르면 수정하거나 삭제할 수 있어요.</li>
+          <li>맨 왼쪽 <b>초기화</b>를 누르면 프리셋 선택과 이름이 지워지고 다이얼이 0으로 돌아가요. 세션 중간(회차를 하나 이상 마친 뒤)이면 한 번 더 확인해요. 마친 회차는 기록에 남아요.</li>
+          <li><b>집중만</b>: 한 회가 끝나면 다음 회 시간이 채워지고, START를 눌러 직접 시작해요. 버튼에 <b>×4</b>처럼 보여요.</li>
+          <li><b>집중 + 휴식</b>: 집중 → 휴식 → 집중…이 짧은 알람과 함께 자동으로 이어져요. 마지막 집중이 끝나면 멈춰요. 버튼에 <b>↻4</b>처럼 보여요.</li>
+          <li>반복이 2회 이상이면 시계 위에 동그라미가 생기고, 마친 회차만큼 채워져요.</li>
+          <li>프리셋 없이 다이얼만 돌리면 한 번만 쓰는 타이머가 돼요.</li>
+        </ul>
+
+        <h3>기록</h3>
+        <ul>
+          <li>화면을 왼쪽으로 밀면(또는 아래 점을 누르면) 기록 화면이 나와요.</li>
+          <li>끝까지 마친 집중 시간만 기록돼요. 휴식 시간과 <b>RESET</b>으로 멈춘 시간은 기록되지 않아요.</li>
+          <li>칸이 진할수록 그날 오래 집중한 거예요. 칸을 누르면 그날 언제 시작해서 언제 끝냈는지 볼 수 있어요.</li>
+          <li>기록은 이 기기에만 저장돼요. 설정에서 내보내기로 백업해 두세요.</li>
         </ul>
 
         <h3>설정</h3>
@@ -186,6 +284,14 @@
       <label class="toggle"><input type="checkbox" id="optDialSound"><span>다이얼·버튼 딸깍 소리</span></label>
       <label class="toggle"><input type="checkbox" id="optReadout"><span>남은 시간 숫자로 표시</span></label>
       <label class="toggle"><input type="checkbox" id="optNotify"><span>화면이 꺼졌을 때 알림 보내기</span></label>
+
+      <h3>기록</h3>
+      <div class="row-btns">
+        <button type="button" id="exportLog">내보내기</button>
+        <button type="button" id="importLog">가져오기</button>
+      </div>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+      <p class="note">기록은 이 기기에만 저장돼요. 브라우저 데이터를 지우면 함께 지워지니 가끔 내보내 두세요. 가져오면 지금 기록에 합쳐져요.</p>
     </form>
   </dialog>
 

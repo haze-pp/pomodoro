@@ -7,6 +7,8 @@ const CX = 200, CY = 228;          // 다이얼 중심
 const R_FACE = 165;                // 다이얼 판 반지름
 const R_SECTOR = 118;              // 시간 원판 반지름
 const STORE_KEY = 'focus-timer:v1';
+const LOG_KEY = 'focus-timer:log:v1'; // 집중 기록은 설정과 따로 저장 (타이머 상태를 저장할 때마다 같이 쓰지 않게)
+const MAX_REPEAT = 12;
 
 const THEMES = {
   sage: {
@@ -34,6 +36,7 @@ const COLOR_FIELDS = [
 const DEFAULTS = {
   theme: 'sage',
   customThemes: [],  // 직접 만든 테마 [{ id, name, ...색 }]
+  // 세션 프리셋 { name, minutes, mode: 'focus'(집중만, 회차마다 직접 시작) | 'cycle'(집중+휴식 자동 반복), repeat, breakMinutes }
   presets: [30, null, null, null],
   presetsSeeded: true, // 기본 30분 버튼을 한 번 넣었는지
   alarmSeconds: 30,
@@ -73,6 +76,8 @@ function loadSettings() {
       if (saved.presets.every((m) => !m)) saved.presets = [...DEFAULTS.presets];
       saved.presetsSeeded = true;
     }
+    // 예전의 '분'만 있던 버튼 → 세션 프리셋
+    saved.presets = Array.from({ length: 4 }, (_, i) => normalizePreset(saved.presets[i]));
     // 이전 버전의 3단계 음량 설정 → 켬/끔
     if ('volume' in saved) {
       saved.alarmSound = saved.volume > 0;
@@ -83,6 +88,24 @@ function loadSettings() {
   } catch {
     return structuredClone(DEFAULTS);
   }
+}
+function clampInt(v, min, max) {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : null;
+}
+
+function normalizePreset(p) {
+  if (!p) return null;
+  if (typeof p === 'number') p = { minutes: p };
+  const minutes = clampInt(p.minutes, 1, MAX_MIN);
+  if (!minutes) return null;
+  return {
+    name: typeof p.name === 'string' ? p.name : '',
+    minutes,
+    mode: p.mode === 'cycle' ? 'cycle' : 'focus',
+    repeat: clampInt(p.repeat, 1, MAX_REPEAT) ?? 1,
+    breakMinutes: clampInt(p.breakMinutes, 1, MAX_MIN) ?? 5,
+  };
 }
 const settings = loadSettings();
 function save() {
@@ -104,7 +127,13 @@ const timer = {
   endAt: 0,          // running일 때 종료 시각(ms)
   remainingMs: 0,    // 멈춰 있을 때 남은 시간
   started: false,    // START로 시작한 세션 진행 중(일시정지 포함)
-  sessionMinutes: 0, // 이번에 맞춘 시간(알림 문구용)
+  sessionMinutes: 0, // 지금 구간(집중 또는 휴식)에 맞춘 시간
+  name: '',          // 위쪽에 보이는 이름 (선택)
+  plan: null,        // 세션 프리셋으로 맞췄을 때 { preset, minutes, mode, repeat, breakMinutes }, 다이얼로만 맞추면 null
+  phase: 'focus',    // 'focus' | 'break'
+  round: 1,          // 지금(또는 다음) 몇 번째 집중인지
+  doneRounds: 0,     // 끝까지 마친 집중 횟수
+  focusStart: 0,     // 이번 집중을 시작한 시각 (기록용)
 };
 let dragging = false;
 let alarmActive = false;
@@ -124,15 +153,15 @@ function restoreTimer() {
   Object.assign(timer, t);
   if (t.started === undefined) timer.started = timer.running;
   if (timer.running && timer.endAt <= Date.now()) {
-    // 앱이 닫혀 있는 동안 끝난 타이머는 조용히 정리
-    timer.started = false;
-    timer.running = false;
-    timer.remainingMs = 0;
+    // 앱이 닫혀 있는 동안 끝난 구간은 조용히 정리 (끝까지 한 집중은 기록)
+    while (timer.running && timer.endAt <= Date.now()) endPhase(timer.endAt);
+    persistTimer();
   }
 }
 
 function start() {
   if (timer.running || timer.remainingMs <= 0) return;
+  if (!timer.started && timer.phase === 'focus') timer.focusStart = Date.now();
   timer.started = true;
   timer.running = true;
   timer.endAt = Date.now() + timer.remainingMs;
@@ -147,19 +176,81 @@ function stopRun() {
   releaseWakeLock();
 }
 
-function finish() {
+function sessionDone() {
+  return !!timer.plan && timer.doneRounds >= timer.plan.repeat;
+}
+
+// 지금 구간을 at 시각에 끝내고 다음 구간으로 넘김
+// 집중+휴식 모드는 끝난 시각부터 다음 구간을 바로 이어 감 (화면이 꺼져 늦게 확인해도 시간이 밀리지 않게)
+function endPhase(at) {
+  const p = timer.plan;
+  if (timer.phase === 'focus') {
+    addLog({
+      start: timer.focusStart || at - timer.sessionMinutes * 60000,
+      end: at,
+      minutes: timer.sessionMinutes,
+      name: timer.name,
+      round: timer.round,
+      rounds: p ? p.repeat : 1,
+    });
+    timer.doneRounds++;
+  }
+  const more = p && timer.doneRounds < p.repeat;
+  if (more && p.mode === 'cycle') {
+    if (timer.phase === 'focus') {
+      timer.phase = 'break';
+      timer.sessionMinutes = p.breakMinutes;
+    } else {
+      timer.phase = 'focus';
+      timer.round++;
+      timer.focusStart = at;
+      timer.sessionMinutes = p.minutes;
+    }
+    timer.endAt = at + timer.sessionMinutes * 60000;
+    return timer.phase;
+  }
   timer.started = false;
   timer.running = false;
+  if (more) {
+    // 집중만 모드: 다음 회차 시간을 채워 두고 START를 기다림
+    timer.round++;
+    timer.sessionMinutes = p.minutes;
+    timer.remainingMs = p.minutes * 60000;
+    return 'round';
+  }
   timer.remainingMs = 0;
-  releaseWakeLock();
-  persistTimer();
-  markActivePreset();
-  startAlarm();
-  render(true);
+  return 'done';
 }
 
 function checkDone() {
-  if (timer.running && remaining() <= 0) finish();
+  if (!timer.running || remaining() > 0) return;
+  let kind;
+  while (timer.running && timer.endAt <= Date.now()) kind = endPhase(timer.endAt);
+  if (!timer.running) releaseWakeLock();
+  persistTimer();
+  markActivePreset();
+  startAlarm(kind);
+  render(true);
+}
+
+/* ───────── 기록 ───────── */
+function loadLog() {
+  try {
+    const a = JSON.parse(localStorage.getItem(LOG_KEY));
+    return Array.isArray(a) ? a : [];
+  } catch {
+    return [];
+  }
+}
+let focusLog = loadLog();
+function saveLog() {
+  try { localStorage.setItem(LOG_KEY, JSON.stringify(focusLog)); } catch { /* 저장 불가 환경 */ }
+}
+
+function addLog(entry) {
+  focusLog.push(entry);
+  saveLog();
+  logDirty = true;
 }
 
 /* ───────── SVG 다이얼 ───────── */
@@ -240,7 +331,7 @@ function buildClock() {
   }
 
   // 시간 원판
-  sectorEl = el('path', { style: 'fill:var(--sector)' }, svg);
+  sectorEl = el('path', { class: 'sector', style: 'fill:var(--sector)' }, svg);
 
   // 문구 (원판 위에 테두리를 둘러 가려지지 않게)
   phraseEl = el('text', {
@@ -280,6 +371,7 @@ function buildClock() {
   resetG.addEventListener('pointerdown', (e) => {
     resetG.setPointerCapture(e.pointerId);
     playClick(1500);
+    if (timer.phase === 'focus') showHint(RESET_WARNING);
     resetHolding = true;
     render(true);
     holdTimer = setTimeout(() => {
@@ -355,9 +447,13 @@ function fmt(ms) {
 
 function render(force) {
   const rem = remaining();
-  const key = `${Math.floor(rem / 100)}|${timer.running}|${timer.started}|${startPressed}|${resetHolding}|${settings.light}|${settings.readout}`;
+  const key = `${Math.floor(rem / 100)}|${timer.running}|${timer.started}|${startPressed}|${resetHolding}|${settings.light}|${settings.readout}|${timer.phase}`;
   if (!force && key === lastKey) return;
   lastKey = key;
+
+  renderSession();
+  svg.classList.toggle('break', timer.phase === 'break');
+  clearBtn.disabled = !timer.plan && !timer.name && rem <= 0;
 
   const min = rem / 60000;
   sectorEl.setAttribute('d', sectorPath(min));
@@ -392,13 +488,72 @@ function render(force) {
   readoutEl.classList.toggle('hidden', !settings.readout && !dragging);
   readoutEl.classList.toggle('setting', dragging);
   if (rem > 0) {
-    readoutEl.textContent = (timer.started && !timer.running ? 'PAUSED · ' : '') + fmt(rem);
+    readoutEl.textContent = (timer.phase === 'break' ? '휴식 · ' : '') +
+      (timer.started && !timer.running ? 'PAUSED · ' : '') + fmt(rem);
+  } else if (alarmActive) {
+    readoutEl.textContent = '끝! 화면을 눌러 알람 끄기';
   } else {
-    readoutEl.textContent = alarmActive ? '끝! 화면을 눌러 알람 끄기' : '0:00';
+    readoutEl.textContent = timer.plan?.repeat > 1 && sessionDone() ? '세션 완료' : '0:00';
   }
   // 시작하면 자주 쓰는 시간 버튼이 빠지고 시계가 가운데로
   document.body.classList.toggle('focus', timer.started);
+  // 집중 시간이 흐르는 동안만 잠금. 휴식 중 기록 화면을 보다가 집중이 시작되면 타이머 화면으로 돌아옴
+  const locked = timer.running && timer.phase === 'focus';
+  if (document.body.classList.toggle('locked', locked) && pager.scrollLeft) pager.scrollTo({ left: 0 });
 }
+
+/* ───────── 세션 이름·회차 ───────── */
+const sessionNameEl = document.getElementById('sessionName');
+const roundsEl = document.getElementById('rounds');
+let sessionKey = '';
+
+function renderSession() {
+  const p = timer.plan;
+  const key = `${timer.name}|${p?.repeat}|${timer.round}|${timer.doneRounds}|${timer.phase}`;
+  if (key === sessionKey) return;
+  sessionKey = key;
+
+  sessionNameEl.textContent = timer.name || '+ 이름';
+  sessionNameEl.classList.toggle('empty', !timer.name);
+  sessionNameEl.setAttribute('aria-label', timer.name ? `이름: ${timer.name} (눌러서 바꾸기)` : '이름 붙이기');
+
+  // 반복 횟수만큼 동그라미: 마친 회차는 채우고, 지금 회차는 테두리 강조
+  roundsEl.textContent = '';
+  if (!p || p.repeat < 2) {
+    roundsEl.removeAttribute('aria-label');
+    return;
+  }
+  for (let i = 1; i <= p.repeat; i++) {
+    const dot = document.createElement('span');
+    dot.className = 'round-dot';
+    if (i <= timer.doneRounds) dot.classList.add('done');
+    else if (i === timer.round && timer.phase === 'focus') dot.classList.add('current');
+    roundsEl.appendChild(dot);
+  }
+  roundsEl.setAttribute('aria-label', `${p.repeat}회 중 ${timer.doneRounds}회 완료`);
+}
+
+const nameDialog = document.getElementById('nameDialog');
+const nameInput = document.getElementById('nameInput');
+
+sessionNameEl.addEventListener('click', () => {
+  nameInput.value = timer.name;
+  nameDialog.returnValue = '';
+  nameDialog.showModal();
+  nameInput.select();
+});
+nameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    nameDialog.close('save');
+  }
+});
+nameDialog.addEventListener('close', () => {
+  if (nameDialog.returnValue !== 'save') return;
+  timer.name = nameInput.value.trim();
+  persistTimer();
+  render(true);
+});
 
 function frame() {
   checkDone();
@@ -476,10 +631,21 @@ const flashEl = document.getElementById('flash');
 let alarmTimeout = null;
 let flashTimer = null;
 
-function startAlarm() {
+// 다음 구간이 자동으로 이어질 때는 짧게만 울림
+function alarmMessage(kind) {
+  const p = timer.plan;
+  if (kind === 'break') return ['휴식 시간이에요', `${p.breakMinutes}분 쉬고 다시 집중해요.`];
+  if (kind === 'focus') return ['다시 집중할 시간이에요', `${p.repeat}회 중 ${timer.round}회차를 시작했어요.`];
+  if (kind === 'round') return ['집중 시간 끝!', `${p.repeat}회 중 ${timer.doneRounds}회를 마쳤어요. START를 눌러 다음 회차를 시작해요.`];
+  if (p?.repeat > 1) return ['세션 완료!', `${p.repeat}회를 모두 마쳤어요.`];
+  return ['집중 시간 끝!', `${timer.sessionMinutes}분 타이머가 끝났어요.`];
+}
+
+function startAlarm(kind = 'done') {
   stopAlarm();
   alarmActive = true;
-  const secs = settings.alarmSeconds;
+  const auto = kind === 'break' || kind === 'focus';
+  const secs = auto ? Math.min(3, settings.alarmSeconds) : settings.alarmSeconds;
 
   alarmGain = settings.alarmSound ? beepPattern(secs, ALARM_GAIN) : null;
 
@@ -501,8 +667,9 @@ function startAlarm() {
 
   if (settings.notify && document.hidden && 'Notification' in window &&
       Notification.permission === 'granted' && navigator.serviceWorker) {
-    navigator.serviceWorker.ready.then((reg) => reg.showNotification('집중 시간 끝!', {
-      body: `${timer.sessionMinutes}분 타이머가 끝났어요.`,
+    const [title, body] = alarmMessage(kind);
+    navigator.serviceWorker.ready.then((reg) => reg.showNotification(timer.name ? `${title} · ${timer.name}` : title, {
+      body,
       tag: 'focus-timer',
       icon: 'icons/icon-192.png',
       vibrate: [200, 100, 200, 100, 200],
@@ -562,13 +729,14 @@ function togglePause() {
     start();
     showHint(RUNNING_HINT); // 버튼이 들어가 보이지 않으니 멈추는 법을 잠깐 안내
   }
-  else showHint();
+  else showHint(sessionDone() && timer.plan.repeat > 1 ? '세션을 모두 마쳤어요. 다시 하려면 프리셋을 눌러 주세요' : DEFAULT_HINT);
   persistTimer();
   render(true);
 }
 
 const DEFAULT_HINT = hintEl.textContent;
 const RUNNING_HINT = '잠시 멈추려면 눌려 있는 버튼을 한 번 더 눌러 주세요';
+const RESET_WARNING = 'RESET하면 지금 하던 집중 시간은 기록되지 않아요';
 let hintTimer = null;
 
 // 안내 문구를 잠깐 바꿔 흔들어 보여 주기
@@ -595,7 +763,8 @@ function resetTimer() {
   stopAlarm();
   stopRun();
   timer.started = false;
-  timer.remainingMs = timer.sessionMinutes * 60000; // 처음 맞춘 시간으로
+  timer.remainingMs = timer.sessionMinutes * 60000; // 이번 구간의 처음 시간으로 (하던 집중은 기록하지 않음)
+  timer.focusStart = 0;
   persistTimer();
   markActivePreset();
   render(true);
@@ -641,6 +810,7 @@ function setupDial() {
     }
     timer.remainingMs = m * 60000;
     timer.sessionMinutes = m;
+    leaveSession();
   });
 
   const end = (e) => {
@@ -658,30 +828,63 @@ function setupDial() {
   hitEl.addEventListener('pointercancel', end);
 }
 
+// 다이얼로 직접 맞추면 프리셋 세션에서 빠져 한 번만 쓰는 타이머가 됨 (프리셋 이름도 같이 비움)
+function leaveSession() {
+  if (timer.plan) timer.name = '';
+  timer.plan = null;
+  timer.phase = 'focus';
+  timer.round = 1;
+  timer.doneRounds = 0;
+}
+
 // 알람이 울리는 중에는 화면 어디를 눌러도 끄기
 document.addEventListener('pointerdown', () => { if (alarmActive) stopAlarm(); }, true);
 
-/* ───────── 자주 쓰는 시간 ───────── */
+/* ───────── 세션 프리셋 (자주 쓰는 시간) ───────── */
 const presetsNav = document.getElementById('presets');
 const presetDialog = document.getElementById('presetDialog');
+const presetName = document.getElementById('presetName');
 const presetMinutes = document.getElementById('presetMinutes');
+const presetBreak = document.getElementById('presetBreak');
+const presetRepeat = document.getElementById('presetRepeat');
+const breakField = document.getElementById('breakField');
+const modeInputs = [...document.querySelectorAll('input[name="presetMode"]')];
 const presetDelete = document.getElementById('presetDelete');
 let editingPreset = -1;
 
 function renderPresets() {
   presetsNav.textContent = '';
-  settings.presets.forEach((m, i) => {
+  settings.presets.forEach((p, i) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'preset' + (m ? '' : ' empty');
-    b.textContent = m ? `${m}분` : '+';
-    b.setAttribute('aria-label', m ? `${m}분으로 맞추기 (길게 눌러 편집)` : '자주 쓰는 시간 추가');
+    b.className = 'preset' + (p ? '' : ' empty');
+    if (p) {
+      // 이름이 있으면 이름, 아래 줄에 시간·반복 (×: 직접 시작, ↻: 휴식 넣어 자동 반복)
+      const main = document.createElement('span');
+      main.className = 'p-main';
+      main.textContent = p.name || `${p.minutes}분`;
+      const sub = [p.name ? `${p.minutes}분` : '', p.repeat > 1 ? `${p.mode === 'cycle' ? '↻' : '×'}${p.repeat}` : '']
+        .filter(Boolean).join(' ');
+      b.append(main);
+      if (sub) {
+        const subEl = document.createElement('span');
+        subEl.className = 'p-sub';
+        subEl.textContent = sub;
+        b.append(subEl);
+      }
+      const desc = [p.name, `${p.minutes}분`];
+      if (p.repeat > 1) desc.push(p.mode === 'cycle' ? `휴식 ${p.breakMinutes}분 넣어 ${p.repeat}회 자동 반복` : `${p.repeat}회`);
+      b.setAttribute('aria-label', `${desc.filter(Boolean).join(' ')} (길게 눌러 편집)`);
+    } else {
+      b.textContent = '+';
+      b.setAttribute('aria-label', '세션 프리셋 추가');
+    }
 
     let pressTimer = null;
     let longPressed = false;
     b.addEventListener('pointerdown', () => {
       longPressed = false;
-      if (!m) return;
+      if (!p) return;
       pressTimer = setTimeout(() => {
         longPressed = true;
         if (navigator.vibrate) navigator.vibrate(15);
@@ -695,8 +898,8 @@ function renderPresets() {
     b.addEventListener('contextmenu', (e) => e.preventDefault());
     b.addEventListener('click', () => {
       if (longPressed) return;
-      if (!m) openPresetDialog(i);
-      else usePreset(m);
+      if (!p) openPresetDialog(i);
+      else usePreset(i);
     });
     presetsNav.appendChild(b);
   });
@@ -705,37 +908,86 @@ function renderPresets() {
 
 function markActivePreset() {
   const buttons = presetsNav.children;
-  settings.presets.forEach((m, i) => {
-    buttons[i]?.classList.toggle('active', !!m && m === timer.sessionMinutes && remaining() > 0);
+  settings.presets.forEach((p, i) => {
+    buttons[i]?.classList.toggle('active', !!p && timer.plan?.preset === i && !sessionDone());
   });
 }
 
-function usePreset(m) {
-  audio();
+function usePreset(i, quiet) {
+  const p = settings.presets[i];
+  if (!quiet) {
+    audio();
+    playClick();
+  }
   stopAlarm();
   stopRun();
   timer.started = false;
-  timer.remainingMs = m * 60000;
-  timer.sessionMinutes = m;
-  playClick();
+  timer.plan = { preset: i, ...p };
+  timer.name = p.name;
+  timer.phase = 'focus';
+  timer.round = 1;
+  timer.doneRounds = 0;
+  timer.focusStart = 0;
+  timer.remainingMs = p.minutes * 60000;
+  timer.sessionMinutes = p.minutes;
   persistTimer();
   markActivePreset();
   render(true);
 }
 
+// 맨 왼쪽 초기화: 프리셋 선택과 이름을 지우고 다이얼을 0으로
+const clearBtn = document.getElementById('clearBtn');
+clearBtn.addEventListener('click', () => {
+  // 회차를 하나 이상 마친 세션이 아직 남아 있으면 한 번 확인
+  const p = timer.plan;
+  if (p && timer.doneRounds > 0 && !sessionDone()) {
+    const label = timer.name ? `'${timer.name}' 세션` : '진행 중인 세션';
+    if (!confirm(`${label}(${p.repeat}회 중 ${timer.doneRounds}회 완료)이 초기화돼요. 되돌릴 수 없어요.\n마친 회차는 기록에 남아요.`)) return;
+  }
+  audio();
+  playClick();
+  stopAlarm();
+  stopRun();
+  timer.started = false;
+  leaveSession();
+  timer.name = '';
+  timer.focusStart = 0;
+  timer.remainingMs = 0;
+  timer.sessionMinutes = 0;
+  persistTimer();
+  markActivePreset();
+  render(true);
+});
+
+function presetMode() {
+  return modeInputs.find((r) => r.checked)?.value ?? 'focus';
+}
+
+function renderBreakField() {
+  breakField.hidden = presetMode() !== 'cycle';
+}
+for (const r of modeInputs) r.addEventListener('change', renderBreakField);
+
 function openPresetDialog(i) {
   editingPreset = i;
   const current = settings.presets[i];
   const dialMin = Math.round(remaining() / 60000);
-  presetMinutes.value = current || (dialMin > 0 ? dialMin : 25);
+  const p = current || normalizePreset({ minutes: timer.phase === 'focus' && dialMin > 0 ? dialMin : 25 });
+  presetName.value = p.name;
+  presetMinutes.value = p.minutes;
+  presetBreak.value = p.breakMinutes;
+  presetRepeat.value = p.repeat;
+  for (const r of modeInputs) r.checked = r.value === p.mode;
+  renderBreakField();
+  document.getElementById('presetTitle').textContent = current ? '세션 프리셋 수정' : '세션 프리셋';
   presetDelete.hidden = !current;
   presetDialog.returnValue = '';
   presetDialog.showModal();
-  presetMinutes.select();
 }
 
 presetDelete.addEventListener('click', () => {
   settings.presets[editingPreset] = null;
+  if (timer.plan?.preset === editingPreset) timer.plan.preset = -1; // 진행 중인 세션은 그대로 두고 버튼과의 연결만 끊음
   save();
   renderPresets();
   presetDialog.close('delete');
@@ -743,12 +995,19 @@ presetDelete.addEventListener('click', () => {
 
 presetDialog.addEventListener('close', () => {
   if (presetDialog.returnValue !== 'save') return;
-  const v = Math.round(Number(presetMinutes.value));
-  if (v >= 1 && v <= MAX_MIN) {
-    settings.presets[editingPreset] = v;
-    save();
-    renderPresets();
-  }
+  const p = normalizePreset({
+    name: presetName.value.trim(),
+    minutes: presetMinutes.value,
+    mode: presetMode(),
+    repeat: presetRepeat.value,
+    breakMinutes: presetBreak.value,
+  });
+  if (!p) return;
+  settings.presets[editingPreset] = p;
+  save();
+  renderPresets();
+  // 맞춰 둔 채 아직 시작하지 않은 프리셋을 고쳤으면 바로 반영
+  if (timer.plan?.preset === editingPreset && !timer.started && timer.doneRounds === 0) usePreset(editingPreset, true);
 });
 
 /* ───────── 테마 ───────── */
@@ -1251,6 +1510,220 @@ document.getElementById('settingsBtn').addEventListener('click', () => {
 /* ───────── 사용 방법 ───────── */
 const helpDialog = document.getElementById('helpDialog');
 document.getElementById('helpBtn').addEventListener('click', () => helpDialog.showModal());
+
+/* ───────── 기록 화면 ───────── */
+const HM_WEEKS = 18; // 잔디에 보이는 주 수 (약 4개월)
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+const heatmapEl = document.getElementById('heatmap');
+const hmMonthsEl = document.getElementById('hmMonths');
+const logSummaryEl = document.getElementById('logSummary');
+const dayTitleEl = document.getElementById('dayTitle');
+const dayListEl = document.getElementById('dayList');
+let logDirty = true;
+let selectedDay = null; // 'YYYY-M-D', 없으면 오늘
+
+const dayKey = (d) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const clock = (t) => {
+  const d = new Date(t);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
+function fmtDuration(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  if (!h) return `${m}분`;
+  return m ? `${h}시간 ${m}분` : `${h}시간`;
+}
+
+// 하루 집중 시간에 따른 잔디 진하기 (0~4)
+function level(min) {
+  if (!min) return 0;
+  if (min < 30) return 1;
+  if (min < 60) return 2;
+  if (min < 120) return 3;
+  return 4;
+}
+
+function renderLog() {
+  logDirty = false;
+  // 날짜별로 묶기 (시작한 날 기준)
+  const byDay = new Map();
+  for (const r of focusLog) {
+    const k = dayKey(new Date(r.start));
+    if (!byDay.has(k)) byDay.set(k, { minutes: 0, items: [] });
+    const d = byDay.get(k);
+    d.minutes += r.minutes;
+    d.items.push(r);
+  }
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayKey = dayKey(today);
+  if (!selectedDay) selectedDay = todayKey;
+
+  // 요약: 오늘, 최근 7일, 연속 일수
+  const minutesOn = (d) => byDay.get(dayKey(d))?.minutes ?? 0;
+  let week = 0, weekCount = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = byDay.get(dayKey(addDays(today, -i)));
+    week += d?.minutes ?? 0;
+    weekCount += d?.items.length ?? 0;
+  }
+  let streak = 0;
+  for (let i = minutesOn(today) ? 0 : 1; minutesOn(addDays(today, -i)); i++) streak++;
+  const todayData = byDay.get(todayKey);
+  logSummaryEl.textContent = '';
+  for (const [label, value, sub] of [
+    ['오늘', fmtDuration(todayData?.minutes ?? 0), `${todayData?.items.length ?? 0}회`],
+    ['최근 7일', fmtDuration(week), `${weekCount}회`],
+    ['연속', `${streak}일`, streak ? '이어 가는 중' : '오늘 시작해요'],
+  ]) {
+    const tile = document.createElement('div');
+    tile.className = 'stat';
+    tile.innerHTML = '<span class="stat-label"></span><b class="stat-value"></b><span class="stat-sub"></span>';
+    tile.children[0].textContent = label;
+    tile.children[1].textContent = value;
+    tile.children[2].textContent = sub;
+    logSummaryEl.appendChild(tile);
+  }
+
+  // 잔디: 열 = 주(일요일 시작), 행 = 요일, 맨 오른쪽 열이 이번 주
+  const first = addDays(today, -(HM_WEEKS - 1) * 7 - today.getDay());
+  heatmapEl.textContent = '';
+  hmMonthsEl.textContent = '';
+  // 그 주에 1일이 들어 있으면 월 표시 (맨 처음 열은 바로 옆에 다음 달 표시가 없을 때만)
+  const monthOf = (w) => {
+    const weekStart = addDays(first, w * 7);
+    return [...Array(7)].map((_, i) => addDays(weekStart, i)).find((d) => d.getDate() === 1 && d <= today);
+  };
+  for (let w = 0; w < HM_WEEKS; w++) {
+    const label = document.createElement('span');
+    const weekStart = addDays(first, w * 7);
+    const monthStart = monthOf(w) || (w === 0 && !monthOf(1) && !monthOf(2) && weekStart);
+    if (monthStart) label.textContent = `${monthStart.getMonth() + 1}월`;
+    hmMonthsEl.appendChild(label);
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(weekStart, i);
+      const cell = document.createElement('span');
+      cell.className = 'hm-cell';
+      if (d > today) {
+        cell.classList.add('future');
+      } else {
+        const k = dayKey(d);
+        const min = byDay.get(k)?.minutes ?? 0;
+        cell.dataset.day = k;
+        cell.dataset.level = level(min);
+        cell.title = `${d.getMonth() + 1}월 ${d.getDate()}일 · ${fmtDuration(min)}`;
+        if (k === selectedDay) cell.classList.add('selected');
+      }
+      heatmapEl.appendChild(cell);
+    }
+  }
+
+  // 고른 날의 세션 목록
+  const [y, m, dd] = selectedDay.split('-').map(Number);
+  const sel = new Date(y, m - 1, dd);
+  const day = byDay.get(selectedDay);
+  dayTitleEl.textContent = `${m}월 ${dd}일 (${WEEKDAYS[sel.getDay()]})` + (day ? ` · ${fmtDuration(day.minutes)}` : '');
+  dayListEl.textContent = '';
+  if (!day) {
+    const li = document.createElement('li');
+    li.className = 'day-empty';
+    li.textContent = '이 날은 기록이 없어요';
+    dayListEl.appendChild(li);
+    return;
+  }
+  for (const r of [...day.items].sort((a, b) => a.start - b.start)) {
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="dl-time"></span><span class="dl-name"></span><span class="dl-min"></span>';
+    li.children[0].textContent = `${clock(r.start)} – ${clock(r.end)}`;
+    const name = li.children[1];
+    name.textContent = r.name || '집중';
+    name.classList.toggle('unnamed', !r.name);
+    if (r.rounds > 1) {
+      const small = document.createElement('small');
+      small.textContent = ` ${r.round}/${r.rounds}`;
+      name.appendChild(small);
+    }
+    li.children[2].textContent = `${r.minutes}분`;
+    dayListEl.appendChild(li);
+  }
+}
+
+heatmapEl.addEventListener('click', (e) => {
+  const k = e.target.dataset?.day;
+  if (!k) return;
+  selectedDay = k;
+  renderLog();
+});
+
+/* ───────── 옆으로 넘기는 페이지 ───────── */
+const pager = document.getElementById('pager');
+const pageDots = [...document.querySelectorAll('#pageDots button')];
+let currentPage = 0;
+
+function onPageChange() {
+  const i = Math.round(pager.scrollLeft / pager.clientWidth);
+  if (i === currentPage) return;
+  currentPage = i;
+  pageDots.forEach((b, j) => {
+    b.classList.toggle('on', j === i);
+    b.setAttribute('aria-current', j === i ? 'page' : 'false');
+  });
+  if (i === 1) {
+    selectedDay = null; // 기록을 열 때마다 오늘부터
+    renderLog();
+  }
+}
+pager.addEventListener('scroll', onPageChange, { passive: true });
+pageDots.forEach((b, i) => b.addEventListener('click', () => {
+  pager.scrollTo({ left: i * pager.clientWidth, behavior: 'smooth' });
+}));
+// 기록 화면을 보는 동안 새 기록이 생기면 다시 그림
+setInterval(() => { if (currentPage === 1 && logDirty) renderLog(); }, 1000);
+
+/* ───────── 기록 내보내기·가져오기 ───────── */
+const importFile = document.getElementById('importFile');
+
+document.getElementById('exportLog').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify({ app: 'focus-timer', version: 1, log: focusLog }, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `focus-timer-기록-${dayKey(new Date())}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+
+document.getElementById('importLog').addEventListener('click', () => importFile.click());
+
+importFile.addEventListener('change', async () => {
+  const file = importFile.files[0];
+  importFile.value = '';
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    const list = Array.isArray(data) ? data : data.log;
+    if (!Array.isArray(list)) throw new Error('형식이 달라요');
+    // 같은 시각에 시작한 기록은 이미 있는 것으로 보고 건너뜀
+    const known = new Set(focusLog.map((r) => r.start));
+    let added = 0;
+    for (const r of list) {
+      if (!Number.isFinite(r?.start) || !Number.isFinite(r?.end) || !Number.isFinite(r?.minutes) || known.has(r.start)) continue;
+      focusLog.push({
+        start: r.start, end: r.end, minutes: r.minutes,
+        name: typeof r.name === 'string' ? r.name : '',
+        round: Number(r.round) || 1, rounds: Number(r.rounds) || 1,
+      });
+      known.add(r.start);
+      added++;
+    }
+    focusLog.sort((a, b) => a.start - b.start);
+    saveLog();
+    renderLog();
+    alert(added ? `기록 ${added}개를 가져왔어요.` : '새로 가져올 기록이 없어요.');
+  } catch {
+    alert('기록 파일을 읽지 못했어요. 이 앱에서 내보낸 파일인지 확인해 주세요.');
+  }
+});
 
 /* ───────── 앱 상태 변화 ───────── */
 document.addEventListener('visibilitychange', () => {
