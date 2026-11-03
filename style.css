@@ -333,6 +333,30 @@ body.focus .hint.nudge { opacity: 1; }
   transition: opacity .4s;
 }
 .dim.on { opacity: .8; pointer-events: auto; transition: opacity 2s; }
+.dim.black.on { opacity: 1; }
+
+/* 까만 화면에 남은 시간만 (OLED 번인 방지로 1분마다 위치를 옮김) */
+.saver {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255, 255, 255, .5);
+  transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px)));
+  transition: transform 1.5s ease;
+}
+.dim.digital .saver, .dim.dial .saver { display: flex; }
+.saver p { margin: 0; }
+.saver-info { font-size: 14px; letter-spacing: .04em; min-height: 1.2em; }
+.saver-time { font-size: 72px; font-weight: 300; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.dim:not(.digital) .saver-time { display: none; }
+.saver-dial { display: none; width: min(240px, 60vw); height: auto; }
+.dim.dial .saver-dial { display: block; }
+.saver-dial .line { fill: none; stroke: rgba(255, 255, 255, .35); stroke-width: 3; stroke-linecap: round; }
+.saver-dial .wedge { fill: none; stroke: color-mix(in srgb, var(--sector) 75%, #000); stroke-width: 4; stroke-linejoin: round; }
 /* 밝히는 터치는 손을 뗄 때까지 아래 버튼에 닿지 않게 */
 .dim.waking { pointer-events: auto; }
 
@@ -826,6 +850,9 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
 .toggle input { width: 18px; height: 18px; }
 
 .note { font-size: 12px; color: #777; line-height: 1.5; margin: 14px 0 0; }
+.note.warn { margin-top: 2px; }
+.note.warn b { color: #b4492f; font-weight: 600; }
+.choice-list .toggle input { accent-color: #222; }
 
 /* 가로 화면 */
 @media (orientation: landscape) and (max-height: 520px) {

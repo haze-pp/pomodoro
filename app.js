@@ -9,6 +9,7 @@ const R_SECTOR = 118;              // 시간 원판 반지름
 const STORE_KEY = 'focus-timer:v1';
 const LOG_KEY = 'focus-timer:log:v1'; // 집중 기록은 설정과 따로 저장 (타이머 상태를 저장할 때마다 같이 쓰지 않게)
 const MAX_REPEAT = 12;
+const DIM_MODES = ['off', 'dim', 'digital', 'dial'];
 
 const THEMES = {
   sage: {
@@ -46,7 +47,8 @@ const DEFAULTS = {
   vibrate: true,
   readout: true,
   notify: false,
-  dimScreen: true,
+  dimMode: 'dim',          // 'off' | 'dim' | 'digital'(까만 화면 + 숫자) | 'dial'(까만 화면 + 선 타이머)
+  allowScreenOff: false,   // 한동안 손대지 않으면 화면이 꺼지는 것도 허용
   timer: null,
 };
 
@@ -84,6 +86,10 @@ function loadSettings() {
       saved.alarmSound = saved.volume > 0;
       delete saved.volume;
     }
+    // 예전의 '화면 어둡게' 켬/끔 → 방식 고르기
+    if ('dimScreen' in raw) saved.dimMode = raw.dimScreen ? 'dim' : 'off';
+    delete saved.dimScreen;
+    if (!DIM_MODES.includes(saved.dimMode)) saved.dimMode = DEFAULTS.dimMode;
     saved.alarmSeconds = Math.min(60, Math.max(1, Math.round(Number(saved.alarmSeconds)) || 30));
     return saved;
   } catch {
@@ -558,7 +564,7 @@ nameDialog.addEventListener('close', () => {
 
 function frame() {
   checkDone();
-  render(dragging);
+  if (!blackedOut()) render(dragging); // 까만 화면일 땐 시계를 다시 그리지 않음
   requestAnimationFrame(frame);
 }
 
@@ -1477,7 +1483,7 @@ const toggles = {
   optReadout: 'readout',
   optLight: 'light',
   optNotify: 'notify',
-  optDim: 'dimScreen',
+  optScreenOff: 'allowScreenOff',
 };
 for (const [id, key] of Object.entries(toggles)) {
   const input = document.getElementById(id);
@@ -1501,6 +1507,15 @@ function renderSettings() {
   renderThemeList();
   renderAlarmSeconds();
   for (const [id, key] of Object.entries(toggles)) document.getElementById(id).checked = !!settings[key];
+  for (const r of dimModeInputs) r.checked = r.value === settings.dimMode;
+}
+
+const dimModeInputs = [...document.querySelectorAll('input[name="dimMode"]')];
+for (const r of dimModeInputs) {
+  r.addEventListener('change', () => {
+    settings.dimMode = r.value;
+    save();
+  });
 }
 
 document.getElementById('settingsBtn').addEventListener('click', () => {
@@ -1740,14 +1755,29 @@ document.addEventListener('visibilitychange', () => {
 setInterval(checkDone, 1000);
 
 /* ───────── 화면 어둡게 ───────── */
-// 화면이 꺼지지 않게 잡아 두는 동안(타이머가 도는 동안) 한동안 손대지 않으면 어둡게
+// 화면이 꺼지지 않게 잡아 두는 동안(타이머가 도는 동안) 한동안 손대지 않으면
+// 어둡게 하거나, 까만 화면에 남은 시간만 보여 줌 (OLED 배터리 절약·번인 방지)
 const DIM_AFTER_MS = 30000;
+const SAVER_MOVE_MS = 60000;
 const dimEl = document.getElementById('dim');
+const saverEl = document.getElementById('saver');
+const saverInfo = document.getElementById('saverInfo');
+const saverTime = document.getElementById('saverTime');
+const saverDial = document.getElementById('saverDial');
 let lastTouch = Date.now();
+let saverMovedAt = 0;
+let saverWedge = null;
+
+function blackedOut() {
+  return dimEl.classList.contains('on') && dimEl.classList.contains('black');
+}
 
 function wakeScreen() {
   lastTouch = Date.now();
+  if (!dimEl.classList.contains('on')) return;
   dimEl.classList.remove('on');
+  if (timer.running) holdWakeLock(); // 화면 꺼짐을 허용해 놓아 줬던 잠금을 다시 잡음
+  render(true);
 }
 
 document.addEventListener('pointerdown', wakeScreen, true);
@@ -1758,15 +1788,67 @@ for (const ev of ['pointerup', 'pointercancel']) {
   dimEl.addEventListener(ev, () => setTimeout(() => dimEl.classList.remove('waking'), 50));
 }
 
+// 선으로 그린 타이머: 판 테두리, 5분 눈금, 남은 시간 부채꼴 테두리, 가운데 손잡이
+function buildSaverDial() {
+  saverDial.setAttribute('viewBox', `${CX - 172} ${CY - 172} 344 344`);
+  el('circle', { cx: CX, cy: CY, r: 165, class: 'line' }, saverDial);
+  for (let m = 0; m < 60; m += 5) {
+    const [x1, y1] = polar(m % 15 ? 152 : 146, m * 6);
+    const [x2, y2] = polar(158, m * 6);
+    el('line', { x1, y1, x2, y2, class: 'line' }, saverDial);
+  }
+  saverWedge = el('path', { class: 'wedge' }, saverDial);
+  el('circle', { cx: CX, cy: CY, r: 9, class: 'line' }, saverDial);
+}
+
+function renderSaver() {
+  const rem = remaining();
+  const info = [timer.name];
+  if (timer.plan?.repeat > 1) info.push(`${timer.round}/${timer.plan.repeat}`);
+  if (timer.phase === 'break') info.push('휴식');
+  saverInfo.textContent = info.filter(Boolean).join(' · ');
+  if (settings.dimMode === 'digital') saverTime.textContent = fmt(rem);
+  else saverWedge.setAttribute('d', sectorPath(rem / 60000));
+
+  // 1분마다 다른 자리로 (화면 안에서만)
+  if (Date.now() - saverMovedAt >= SAVER_MOVE_MS) {
+    saverMovedAt = Date.now();
+    const r = saverEl.getBoundingClientRect();
+    const roomX = Math.max(0, (innerWidth - r.width) / 2 - 16);
+    const roomY = Math.max(0, (innerHeight - r.height) / 2 - 16);
+    saverEl.style.setProperty('--dx', `${Math.round((Math.random() * 2 - 1) * roomX)}px`);
+    saverEl.style.setProperty('--dy', `${Math.round((Math.random() * 2 - 1) * roomY)}px`);
+  }
+}
+
 setInterval(() => {
-  const dim = settings.dimScreen && timer.running && !alarmActive && !document.querySelector('dialog[open]') &&
+  const idle = timer.running && !alarmActive && !document.querySelector('dialog[open]') &&
     Date.now() - lastTouch >= DIM_AFTER_MS;
-  if (dim) dimEl.classList.add('on');
-  else if (!timer.running) dimEl.classList.remove('on');
+  // 화면 꺼짐 허용: 잠금을 놓아 주면 휴대폰의 화면 자동 꺼짐 시간에 따라 꺼짐
+  if (idle && settings.allowScreenOff) releaseWakeLock();
+
+  if (!timer.running) {
+    if (dimEl.classList.contains('on')) {
+      dimEl.classList.remove('on');
+      render(true);
+    }
+    return;
+  }
+  if (!idle || settings.dimMode === 'off') return;
+  const black = settings.dimMode === 'digital' || settings.dimMode === 'dial';
+  if (!dimEl.classList.contains('on')) {
+    dimEl.classList.toggle('black', black);
+    dimEl.classList.toggle('digital', settings.dimMode === 'digital');
+    dimEl.classList.toggle('dial', settings.dimMode === 'dial');
+    saverMovedAt = 0;
+    dimEl.classList.add('on');
+  }
+  if (black) renderSaver();
 }, 1000);
 
 /* ───────── 시작 ───────── */
 buildClock();
+buildSaverDial();
 setupDial();
 restoreTimer();
 applyTheme();

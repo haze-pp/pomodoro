@@ -186,7 +186,8 @@
 
         <h3>알아 두면 좋아요</h3>
         <ul>
-          <li>타이머가 도는 동안에는 화면이 꺼지지 않아요. 대신 30초 동안 손대지 않으면 화면이 어두워지고, 누르면 다시 밝아져요(설정에서 끌 수 있어요).</li>
+          <li>타이머가 도는 동안에는 화면이 꺼지지 않아요. 대신 30초 동안 손대지 않으면 화면이 어두워지고, 누르면 다시 밝아져요. 설정에서 어둡게만 할지, 까만 화면에 남은 시간(숫자 또는 선으로 그린 타이머)만 보여 줄지, 그대로 둘지 고를 수 있어요.</li>
+          <li>배터리를 더 아끼려면 설정에서 <b>화면이 꺼지는 것도 허용</b>을 켜요. 이때는 화면이 꺼진 동안 알람이 늦거나 소리가 안 날 수 있어요.</li>
           <li>다른 앱으로 가거나 화면을 끄면 알람이 늦게 울릴 수 있어요. 설정에서 <b>화면이 꺼졌을 때 알림 보내기</b>를 켜 두면 알림으로 알려 줘요.</li>
         </ul>
       </div>
@@ -284,8 +285,17 @@
       <label class="toggle"><input type="checkbox" id="optDialSound"><span>다이얼·버튼 딸깍 소리</span></label>
       <label class="toggle"><input type="checkbox" id="optReadout"><span>남은 시간 숫자로 표시</span></label>
       <label class="toggle"><input type="checkbox" id="optNotify"><span>화면이 꺼졌을 때 알림 보내기</span></label>
-      <label class="toggle"><input type="checkbox" id="optDim"><span>타이머가 도는 동안 30초 뒤 화면 어둡게</span></label>
-      <p class="note">화면을 누르면 다시 밝아져요. 어두울 때 누른 첫 터치는 밝히기만 하고 버튼은 눌리지 않아요.</p>
+
+      <h3>타이머가 도는 동안 30초간 손대지 않으면</h3>
+      <div class="choice-list" role="radiogroup" aria-label="화면 보호">
+        <label class="toggle"><input type="radio" name="dimMode" value="off"><span>그대로 두기</span></label>
+        <label class="toggle"><input type="radio" name="dimMode" value="dim"><span>화면만 어둡게</span></label>
+        <label class="toggle"><input type="radio" name="dimMode" value="digital"><span>까만 화면 + 남은 시간 숫자</span></label>
+        <label class="toggle"><input type="radio" name="dimMode" value="dial"><span>까만 화면 + 선으로 그린 타이머</span></label>
+      </div>
+      <p class="note">까만 화면은 OLED 화면에서 배터리를 아끼고 번인(잔상)을 막아 줘요. 표시는 1분마다 위치를 조금씩 옮겨요. 화면을 누르면 다시 밝아지고, 이때 누른 첫 터치는 버튼을 누르지 않아요.</p>
+      <label class="toggle"><input type="checkbox" id="optScreenOff"><span>화면이 꺼지는 것도 허용</span></label>
+      <p class="note warn">켜 두면 30초 뒤부터는 휴대폰의 '화면 자동 꺼짐' 시간에 따라 화면이 꺼져서 배터리를 가장 많이 아껴요. <b>대신 화면이 꺼져 있는 동안에는 알람이 늦게 울리거나 소리가 안 날 수 있어요</b>(집중+휴식 전환 알람도 마찬가지). 시간 계산과 기록은 정확해요. 위의 '화면이 꺼졌을 때 알림 보내기'를 같이 켜 두세요.</p>
 
       <h3>기록</h3>
       <div class="row-btns">
@@ -298,7 +308,13 @@
   </dialog>
 
   <div id="flash" class="flash" hidden></div>
-  <div id="dim" class="dim" aria-hidden="true"></div>
+  <div id="dim" class="dim" aria-hidden="true">
+    <div id="saver" class="saver">
+      <p id="saverInfo" class="saver-info"></p>
+      <p id="saverTime" class="saver-time"></p>
+      <svg id="saverDial" class="saver-dial"></svg>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>
