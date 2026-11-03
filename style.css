@@ -323,6 +323,19 @@ body.focus .hint.nudge { opacity: 1; }
 }
 .flash.on { opacity: .85; }
 
+/* 타이머가 도는 동안 한동안 손대지 않으면 화면을 어둡게 (누르면 다시 밝아짐) */
+.dim {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .4s;
+}
+.dim.on { opacity: .8; pointer-events: auto; transition: opacity 2s; }
+/* 밝히는 터치는 손을 뗄 때까지 아래 버튼에 닿지 않게 */
+.dim.waking { pointer-events: auto; }
+
 /* 시트(다이얼로그) */
 .sheet {
   border: 0;

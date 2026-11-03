@@ -46,6 +46,7 @@ const DEFAULTS = {
   vibrate: true,
   readout: true,
   notify: false,
+  dimScreen: true,
   timer: null,
 };
 
@@ -643,6 +644,7 @@ function alarmMessage(kind) {
 
 function startAlarm(kind = 'done') {
   stopAlarm();
+  wakeScreen();
   alarmActive = true;
   const auto = kind === 'break' || kind === 'focus';
   const secs = auto ? Math.min(3, settings.alarmSeconds) : settings.alarmSeconds;
@@ -1475,6 +1477,7 @@ const toggles = {
   optReadout: 'readout',
   optLight: 'light',
   optNotify: 'notify',
+  optDim: 'dimScreen',
 };
 for (const [id, key] of Object.entries(toggles)) {
   const input = document.getElementById(id);
@@ -1735,6 +1738,32 @@ document.addEventListener('visibilitychange', () => {
 });
 // 백그라운드에서는 requestAnimationFrame이 멈추므로 별도로 확인
 setInterval(checkDone, 1000);
+
+/* ───────── 화면 어둡게 ───────── */
+// 화면이 꺼지지 않게 잡아 두는 동안(타이머가 도는 동안) 한동안 손대지 않으면 어둡게
+const DIM_AFTER_MS = 30000;
+const dimEl = document.getElementById('dim');
+let lastTouch = Date.now();
+
+function wakeScreen() {
+  lastTouch = Date.now();
+  dimEl.classList.remove('on');
+}
+
+document.addEventListener('pointerdown', wakeScreen, true);
+document.addEventListener('keydown', wakeScreen, true);
+// 어두울 때 누른 터치는 밝히기만 함 (손을 뗄 때까지 덮개가 터치를 받음)
+dimEl.addEventListener('pointerdown', () => dimEl.classList.add('waking'));
+for (const ev of ['pointerup', 'pointercancel']) {
+  dimEl.addEventListener(ev, () => setTimeout(() => dimEl.classList.remove('waking'), 50));
+}
+
+setInterval(() => {
+  const dim = settings.dimScreen && timer.running && !alarmActive && !document.querySelector('dialog[open]') &&
+    Date.now() - lastTouch >= DIM_AFTER_MS;
+  if (dim) dimEl.classList.add('on');
+  else if (!timer.running) dimEl.classList.remove('on');
+}, 1000);
 
 /* ───────── 시작 ───────── */
 buildClock();

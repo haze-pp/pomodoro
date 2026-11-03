@@ -186,7 +186,7 @@
 
         <h3>알아 두면 좋아요</h3>
         <ul>
-          <li>타이머가 도는 동안에는 화면이 꺼지지 않아요.</li>
+          <li>타이머가 도는 동안에는 화면이 꺼지지 않아요. 대신 30초 동안 손대지 않으면 화면이 어두워지고, 누르면 다시 밝아져요(설정에서 끌 수 있어요).</li>
           <li>다른 앱으로 가거나 화면을 끄면 알람이 늦게 울릴 수 있어요. 설정에서 <b>화면이 꺼졌을 때 알림 보내기</b>를 켜 두면 알림으로 알려 줘요.</li>
         </ul>
       </div>
@@ -284,6 +284,8 @@
       <label class="toggle"><input type="checkbox" id="optDialSound"><span>다이얼·버튼 딸깍 소리</span></label>
       <label class="toggle"><input type="checkbox" id="optReadout"><span>남은 시간 숫자로 표시</span></label>
       <label class="toggle"><input type="checkbox" id="optNotify"><span>화면이 꺼졌을 때 알림 보내기</span></label>
+      <label class="toggle"><input type="checkbox" id="optDim"><span>타이머가 도는 동안 30초 뒤 화면 어둡게</span></label>
+      <p class="note">화면을 누르면 다시 밝아져요. 어두울 때 누른 첫 터치는 밝히기만 하고 버튼은 눌리지 않아요.</p>
 
       <h3>기록</h3>
       <div class="row-btns">
@@ -296,6 +298,7 @@
   </dialog>
 
   <div id="flash" class="flash" hidden></div>
+  <div id="dim" class="dim" aria-hidden="true"></div>
 
   <script src="app.js"></script>
 </body>
